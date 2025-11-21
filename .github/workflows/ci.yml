@@ -25,7 +25,7 @@ jobs:
       - name: Verify binary 'glados' exists
         run: |
           if [ ! -f "./glados" ]; then
-            echo "❌ binary ./glados as been generated."
+            echo "❌ binary ./glados as not been generated."
             exit 1
           fi
           if [ ! -x "./glados" ]; then
