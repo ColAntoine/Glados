@@ -1,0 +1,35 @@
+name: CI - Build glados
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies (optional)
+        run: sudo apt-get update
+
+      - name: Run make
+        run: make
+
+      - name: Verify binary 'glados' exists
+        run: |
+          if [ ! -f "./glados" ]; then
+            echo "❌ binary ./glados as not been generated."
+            exit 1
+          fi
+          if [ ! -x "./glados" ]; then
+            echo "❌ binary is generated but not executable"
+            exit 1
+          fi
+          echo "✅ Binary 'glados' found and executable"
