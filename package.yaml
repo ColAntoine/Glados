@@ -9,9 +9,6 @@ library:
   source-dirs: src
   exposed-modules:
     - Parser
-    - AST.GLaDOS
-    - Parser.GLaDOS
-    - Compiler
   dependencies:
     - mtl
 executables:
