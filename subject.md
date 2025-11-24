@@ -18,7 +18,7 @@ compilation: via Makefile, including re, clean and fclean rules
 build tool: free (stack recommanded)
 ```
 ```
-3 The totality of your sourcefiles, except all uselessfiles (binary, tempfiles, objfiles,...), must
+3 The totality of your source files, except all uselessfiles (binary, tempfiles, objfiles,...), must
 be included in your delivery.
 3 All the bonus files (including a potential specific Makefile) should be in a directory named
 bonus.
@@ -42,7 +42,7 @@ ing environments, the Enrichment Center promises to always provide useful advice
 division by zero will kill your program. Try to avoid it.
 ```
 Tests are not only useful, they prevent you from shooting yourself in the foot when adding more code.
-To be sure you develop a perfectly fine language, the GLaDOS system requires you to test **thouroughly**
+To be sure you develop a perfectly fine language, the GLaDOS system requires you to test **thoroughly**
 your code.
 
 **Build system and dependencies**
@@ -96,14 +96,14 @@ Part 1 : Lots of Irritating Superfluous
 Parentheses (LISP)
 
 For thisfirst part of the project you **must** implement a minimalist **LISP** interpreter. To be more precise,
-when not specified otherwise in this document, your language must behave just likeChez-Scheme. It will
+when not specified otherwise in this document, your language must behave just like Chez-Scheme. It will
 be evaluated during thefirst Defense of this project.
 
 In the rare occasion of you being one of those humans who think he's faster than everyone else, and you
 are already at part 2 before even thefirst defense, you **MUST** still have the LISP clone code available (on
 a separate branch of your git, or as an option of your latest build).
 
-Failure to do so will result in you **not having cake** at yourfirst defense, nor points nor credits either.
+Failure to do so will result in you **not having cake** at your first defense, nor points nor credits either.
 Also, be sure to read the following warning. Repetition is key.
 
 ```
@@ -112,7 +112,7 @@ Failure to comply will result in an 'unsatisfactory' mark on your official testi
 ```
 **Syntax**
 
-Being a LISP, thisfirst language **must** be represented bySymbolic-Expressions. At the bare minimum your
+Being a LISP, thisfirst language **must** be represented by Symbolic-Expressions. At the bare minimum your
 parser **must** be able to handle:
 
 ```
@@ -317,7 +317,7 @@ you **must** implement some functions which will be hardcoded in your interprete
 **- ”eq?”** (returns true if its two arguments are equal, false otherwise)
 **- ”<”** (returns true if thefirst argument is strictly lower than the second, false otherwise)
 3 Aritmethic operators, which take two arguments and return an integer:
-**- ”+”** , **”-”** , **”*”
+**"+"** , **"-"** , **"*"**
 - ”div”** (division) and **”mod”** (modulo)
 
 ```
@@ -539,18 +539,18 @@ give you a lot of freedom here, but they must correspond to one of the main ”t
 **-** a notation to interface with any external function (Foreign Function Interface)
 3 Type inference:
 **-** being able to detect before execution if a program / function is not properly typed
-**-** provide a notation to anotate functions / expressions with types
-3 Additionnal backends:
+**-** provide a notation to annotate functions / expressions with types
+3 Additional backends:
 **-** extend your compiler to output bytecode for an existing plateform (Java, C#, WebAssembly,
 Erlang, Python...)
 **-** extend your compiler to output native binary code for x86_64, ARM, RiscV, M68k, MOS-
 or any real hardware (you can use bindings to LLVM to implement this, or handle the codegen
 part yourself)
-3 Additionnal runtime:
+3 Additional runtime:
 **-** write a second VM in a different language (this will only be evaluated if the Haskell VM is fully
 functional)
 3 Metaprogrammation:
-**-** provide notations to allow the user to programmaticaly modify the program structure
+**-** provide notations to allow the user to programmatically modify the program structure
 **-** for example: LISP macros, Rust macros, Elixir macros...
 3 Imperative constructs:
 **-** capability to describe functions as sequence of statements
