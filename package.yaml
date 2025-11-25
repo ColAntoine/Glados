@@ -27,8 +27,12 @@ tests:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+      - -fhpc
     dependencies:
       - glados
+      - tasty
+      - tasty-hspec
       - hspec
-      - HUnit
-      - mtl
+      - process
+      - filepath
+      - directory

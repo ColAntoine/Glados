@@ -4,3 +4,4 @@ glados
 #ignore
 .stack-work
 src/Main
+.hpc
