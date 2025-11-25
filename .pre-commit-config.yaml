@@ -6,3 +6,10 @@ repos:
         entry: echo "Running pre-commit checks..."
         language: system
         stages: [pre-commit]
+
+      - id: run-haskell-tests
+        name: Run Haskell Tests
+        entry: stack test
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
