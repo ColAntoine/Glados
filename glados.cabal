@@ -56,7 +56,8 @@ test-suite glados-test
       LispCases.If.If
       LispCases.Lambda.Lambda
       LispCases.Superior.Superior
-      ParserCases.Parser.Parser
+      Parser.Lisp.Basic
+      Parser.Parser.Combinators
       Paths_glados
   hs-source-dirs:
       test

@@ -11,7 +11,8 @@ import qualified LispCases.Function.Function as FunctionTest
 import qualified LispCases.If.If as IfTest
 import qualified LispCases.Lambda.Lambda as LambdaTest
 import qualified LispCases.Superior.Superior as SuperiorTest
-import qualified ParserCases.Parser.Parser as ParserTest
+import qualified Parser.Parser.Combinators as CombTest
+import qualified Parser.Lisp.Basic as LispParserTest
 
 -- | Simple test-runner flag: pass --only-lisp to run only the LispCases groups.
 -- Any other tasty flags (like --pattern) are forwarded.
@@ -31,24 +32,12 @@ main = do
   ifTests <- IfTest.tests
   lambdaTests <- LambdaTest.tests
   superiorTests <- SuperiorTest.tests
-  parserTests <- ParserTest.tests
+  combinatorTests <- CombTest.tests
+  lispParserTests <- LispParserTest.tests
 
-  let lispGroup = testGroup "LispCases"
-        [ callTests
-        , builtinsTests
-        , errorTests
-        , factorialTests
-        , fooTests
-        , functionTests
-        , ifTests
-        , lambdaTests
-        , superiorTests
-        ]
-
-      parserGroup = testGroup "Parser" [parserTests]
-
+  let lispGroup = testGroup "LispCases" [ callTests, builtinsTests, errorTests, factorialTests, fooTests, functionTests, ifTests, lambdaTests, superiorTests ]
+      parserGroup = testGroup "Parser" [combinatorTests, lispParserTests]
       allGroup = testGroup "Glados Tests" [lispGroup, parserGroup]
-
       toRun = if onlyParser then parserGroup else if onlyLisp then lispGroup else allGroup
 
   -- forward tasty args (like --pattern) but strip our custom flags
