@@ -11,7 +11,6 @@ import Data.List (intercalate)
 import Data.Char (toUpper)
 import AST (Expr(..))
 
--- Runtime values and environment
 data Value
     = VInt Integer
     | VBool Bool
@@ -22,19 +21,11 @@ data Value
 
 type Env = [(String, Value)]
 
--- Public API
 evalProgram :: Env -> [Expr] -> ([Value], Maybe String)
--- Evaluate a list of expressions, returning the list of values to print
--- and an optional error string. Top-level `define` forms are evaluated
--- for their side-effect (updating the environment) but their resulting
--- value is not included in the printed results (matches the examples in
--- subject.md).
 evalProgram env exprs = go env [] exprs
     where
         go _ acc [] = (reverse acc, Nothing)
         go e acc (x:xs) =
-                -- If this is a top-level define form, evaluate it to update the
-                -- environment but do not append its value to the accumulator.
                 case x of
                         EList (ESymbol "define" : _) ->
                                 case eval e x of
@@ -61,7 +52,6 @@ containsUnbound (VUnbound _) = True
 containsUnbound (VList xs) = any containsUnbound xs
 containsUnbound _ = False
 
--- Evaluation
 eval :: Env -> Expr -> Either String (Value, Env)
 eval env (EInt n) = Right (VInt n, env)
 eval env (EBool b) = Right (VBool b, env)
@@ -181,7 +171,6 @@ getInt (VInt n) = Right n
 getInt (VUnbound s) = Left ("variable " ++ s ++ " is not bound")
 getInt _ = Left "type error"
 
--- Helpers for printing data lists
 isPlainList :: Expr -> Bool
 isPlainList (EList (ESymbol "lambda" : _)) = False
 isPlainList (EList _) = True

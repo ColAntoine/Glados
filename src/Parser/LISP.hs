@@ -19,7 +19,6 @@ parseProgram input = case runParser parseMany input of
     Just (es, rest) | all isSpace rest -> Right es
     _ -> Left "Parsing error"
 
--- Internal parsers
 parseMany = many (parseSpace *> parseExpr) <* parseSpace
 
 parseExpr :: Parser Expr

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+read -p "Tag: " tag
+read -p "Message: " message
+
+TAG=$(echo "$tag" | sed 's/\b\w/\U&/g' | tr -d ' ')
+TAGUPPER=$(echo "$TAG" | tr '[:lower:]' '[:upper:]')
+
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+git commit -m "(${current_branch}) : [${TAGUPPER}] - ${message}"

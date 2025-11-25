@@ -1,0 +1,38 @@
+#!/bin/bash
+
+read -p "Key: " key
+read -p "Number (id): " id
+read -p "Epic: " epic
+read -p "Tag: " tag
+read -p "Name: " name
+
+if [ -z "$name" ]; then
+    echo "Error: Name is required"
+    exit 1
+fi
+
+epic_lower=$(echo "$epic" | tr '[:upper:]' '[:lower:]')
+tag_lower=$(echo "$tag" | tr '[:upper:]' '[:lower:]')
+name_lower=$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+branch_parts=()
+if [ -n "$key" ]; then
+    if [ -n "$id" ]; then
+        branch_parts+=("${key}-${id}")
+    else
+        branch_parts+=("$key")
+    fi
+elif [ -n "$id" ]; then
+    branch_parts+=("$id")
+fi
+if [ -n "$epic" ]; then
+    branch_parts+=("$epic_lower")
+fi
+if [ -n "$tag" ]; then
+    branch_parts+=("$tag_lower")
+fi
+branch_parts+=("$name_lower")
+
+branch_name=$(IFS=/; echo "${branch_parts[*]}")
+
+git checkout -b "$branch_name"
