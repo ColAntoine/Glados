@@ -5,3 +5,4 @@ glados
 .stack-work
 src/Main
 .hpc
+*.tix
