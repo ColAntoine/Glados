@@ -69,7 +69,7 @@ spec = do
         result `shouldBe` "5\n"
     
     it "should handle myfeature.scm" $ do
-        schemeCode <- readFile "test/LispCases/myfeature/myfeature.scm"
+        schemeCode <- readFile "test/LispCases/MyFeature/myfeature.scm"
         result <- catch (readProcess "glados" ["-lisp"] schemeCode) handleError
         result `shouldNotBe` ""
 
