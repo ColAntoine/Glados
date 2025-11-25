@@ -1,0 +1,8 @@
+#bin
+glados
+
+#ignore
+.stack-work
+src/Main
+.hpc
+*.tix

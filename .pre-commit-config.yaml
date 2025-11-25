@@ -1,0 +1,17 @@
+repos:
+  - repo: local
+    hooks:
+      - id: run-lisp-tests
+        name: Run Haskell Tests
+        entry: stack test
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+
+      - id: cleanup-project
+        name: Clean Up Project
+        entry: bash -c 'make fclean && rm -f glados-test.tix && stack clean'
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
