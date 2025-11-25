@@ -11,9 +11,6 @@ build-type:     Simple
 library
   exposed-modules:
       Parser
-      AST.GLaDOS
-      Parser.GLaDOS
-      Compiler
   other-modules:
       AST
       Evaluator
@@ -33,11 +30,8 @@ executable glados
   main-is: Main.hs
   other-modules:
       AST
-      AST.GLaDOS
-      Compiler
       Evaluator
       Parser
-      Parser.GLaDOS
       Parser.LISP
       Paths_glados
   hs-source-dirs:
