@@ -115,7 +115,7 @@ GLaDOS uses an automated release workflow based on semantic versioning. Releases
 
 - **Develop Branch** → **Minor Version Bump** (e.g., `0.1.0` → `0.2.0`)
   - Minor releases contain new features and improvements.
-  - Triggered on any push to `develop`.
+  - Triggered when a pull request is merged to `develop`.
 
 - **Main Branch** → **Major Version Bump** (e.g., `0.2.0` → `1.0.0`)
   - Major releases indicate significant changes or breaking changes.
