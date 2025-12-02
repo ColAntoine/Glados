@@ -109,21 +109,21 @@ pre-commit run run-lisp-tests --all-files
 
 ## Release Process
 
-GLaDOS uses an automated release workflow based on semantic versioning. Releases are triggered automatically when code is pushed to the `develop` or `main` branches.
+GLaDOS uses an automated release workflow based on semantic versioning. Releases are triggered automatically when pull requests are merged into the `develop` or `main` branches.
 
 ### How It Works
 
 - **Develop Branch** → **Minor Version Bump** (e.g., `0.1.0` → `0.2.0`)
   - Minor releases contain new features and improvements.
-  - Triggered when a pull request is merged to `develop`.
+  - Triggered when a pull request is merged into `develop`.
 
 - **Main Branch** → **Major Version Bump** (e.g., `0.2.0` → `1.0.0`)
   - Major releases indicate significant changes or breaking changes.
-  - Triggered when code is merged/pushed to `main`.
+  - Triggered when a pull request is merged into `main`.
 
 ### Automated Release Steps
 
-When you push to `develop` or `main`, the GitHub Actions workflow (`.github/workflows/release.yml`) automatically:
+When a pull request is merged into `develop` or `main`, the GitHub Actions workflow (`.github/workflows/release.yml`) automatically:
 
 1. Reads the current version from `package.yaml`
 2. Bumps the version (minor for develop, major for main)
