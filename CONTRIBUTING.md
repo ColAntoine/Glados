@@ -144,23 +144,14 @@ git push origin feature/new-parser
 # After review, merge to develop
 
 # GitHub Actions automatically:
-# - Bumps version from 0.1.5 → 0.2.0
-# - Creates tag v0.2.0
-# - Creates GitHub Release "v0.2.0 (Minor Release)"
+# - Bumps version from 0.1.5.0 → 0.2.0.0
+# - Creates tag v0.2.0.0
+# - Creates GitHub Release "v0.2.0.0 (Minor Release)"
 
 # Later, when merging develop to main:
-# - Bumps version from 0.2.0 → 1.0.0
-# - Creates tag v1.0.0
-# - Creates GitHub Release "v1.0.0 (Major Release)"
-```
-
-### Version Format
-
-Versions follow **Semantic Versioning**: `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
-
-- **MAJOR**: Significant changes, breaking changes (bumped on `main`)
-- **MINOR**: New features, improvements (bumped on `develop`)
-- **PATCH**: Bug fixes (manually bumped if needed; defaults to 0 on automated releases)
+# - Bumps version from 0.2.0.0 → 1.0.0.0
+# - Creates tag v1.0.0.0
+# - Creates GitHub Release "v1.0.0.0 (Major Release)"
 
 ### Important Notes
 
