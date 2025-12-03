@@ -9,6 +9,8 @@ library:
   source-dirs: src
   exposed-modules:
     - Parser
+    - AST
+    - Parser.LISP
   dependencies:
     - mtl
 executables:
