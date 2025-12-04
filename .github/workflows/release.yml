@@ -76,18 +76,11 @@ jobs:
           echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION ($RELEASE_TYPE)"
 
-      - name: Update version in package.yaml
-        run: |
-          sed -i "s/^version:.*/version: ${{ steps.bump.outputs.new }}/" package.yaml
-
-      - name: Commit and tag version
+      - name: Create git tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.yaml
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"
-          git tag "v${{ steps.bump.outputs.new }}"
-          git push origin ${{ github.base_ref }}
+          git tag "v${{ steps.bump.outputs.new }}" -m "Release v${{ steps.bump.outputs.new }}"
           git push origin "v${{ steps.bump.outputs.new }}"
 
       - name: Create GitHub Release
@@ -107,7 +100,7 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Update develop to match main version (if main release)
+      - name: Update develop with new version (if main release)
         if: github.base_ref == 'main'
         run: |
           git config user.name "github-actions[bot]"
