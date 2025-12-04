@@ -1,0 +1,33 @@
+name: Bump Version on Develop
+
+on:
+  workflow_run:
+    workflows: ["release.yml"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update major version in package.yml
+        run: |
+          CURRENT_VERSION=$(grep "version:" package.yml | head -1 | awk '{print $2}')
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          NEW_MAJOR=$((MAJOR + 1))
+          NEW_VERSION="${NEW_MAJOR}.0.0"
+          sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" package.yml
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package.yml
+          git commit -m "chore: bump major version to $NEW_VERSION"
+          git push origin develop

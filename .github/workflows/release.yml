@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - develop
+      - main
+
+jobs:
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.8.4'
+          cabal-version: 'latest'
+          stack-version: 'latest'
+
+      - name: Cache stack dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Run all tests
+        run: stack test
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event.pull_request.merged == true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read current version
+        id: version
+        run: |
+          VERSION=$(grep "^version:" package.yaml | awk '{print $2}')
+          echo "current=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Bump version (minor on develop, major on main)
+        id: bump
+        run: |
+          CURRENT="${{ steps.version.outputs.current }}"
+          MAJOR=$(echo $CURRENT | cut -d. -f1)
+          MINOR=$(echo $CURRENT | cut -d. -f2)
+          PATCH=$(echo $CURRENT | cut -d. -f3)
+
+          if [ "${{ github.base_ref }}" == "main" ]; then
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_VERSION="$NEW_MAJOR.0.0"
+            RELEASE_TYPE="Major"
+          else
+            NEW_MINOR=$((MINOR + 1))
+            NEW_VERSION="$MAJOR.$NEW_MINOR.0"
+            RELEASE_TYPE="Minor"
+          fi
+
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION ($RELEASE_TYPE)"
+
+      - name: Update version in package.yaml
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.bump.outputs.new }}/" package.yaml
+
+      - name: Commit and tag version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.yaml
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"
+          git tag "v${{ steps.bump.outputs.new }}"
+          git push origin ${{ github.base_ref }}
+          git push origin "v${{ steps.bump.outputs.new }}"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "v${{ steps.bump.outputs.new }}"
+          release_name: "v${{ steps.bump.outputs.new }} (${{ steps.bump.outputs.release_type }} Release)"
+          body: |
+            **${{ steps.bump.outputs.release_type }} Release**
+
+            Previous version: v${{ steps.version.outputs.current }}
+            New version: v${{ steps.bump.outputs.new }}
+
+            See [commits](https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current }}...v${{ steps.bump.outputs.new }}) for details.
+          draft: false
+          prerelease: false
+
+      - name: Update develop to match main version (if main release)
+        if: github.base_ref == 'main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin develop
+          git checkout develop
+          MAIN_VERSION="${{ steps.bump.outputs.new }}"
+          sed -i "s/^version:.*/version: $MAIN_VERSION/" package.yaml
+          git add package.yaml
+          git commit -m "chore: sync version with main ($MAIN_VERSION)"
+          git push origin develop
