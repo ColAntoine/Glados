@@ -100,7 +100,7 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Update develop to match main version (if main release)
+      - name: Update develop with new version (if main release)
         if: github.base_ref == 'main'
         run: |
           git config user.name "github-actions[bot]"
