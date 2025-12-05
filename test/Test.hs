@@ -1,6 +1,7 @@
 module Main where
 
 import Test.Tasty
+import System.Environment (getArgs, withArgs)
 import qualified AST.AST as ASTTest
 import qualified LispCases.Call.Call as CallTest
 import qualified LispCases.Builtins.Builtins as BuiltinsTest
@@ -24,9 +25,18 @@ import qualified LispCases.SpecialCases.SpecialCases as SpecialCasesTest
 import qualified LispCases.SymbolHandling.SymbolHandling as SymbolHandlingTest
 import qualified LispCases.BooleanOps.BooleanOps as BooleanOpsTest
 import qualified ParserCombinators.ParserCombinators as ParserCombinatorsTest
+import qualified Parser.Parser.Combinators as CombTest
+import qualified Parser.Lisp.Basic as LispParserTest
 
+-- | Simple test-runner flag: pass --only-lisp to run only the LispCases groups.
+-- Any other tasty flags (like --pattern) are forwarded.
 main :: IO ()
 main = do
+  args <- getArgs
+  let onlyLisp = "--only-lisp" `elem` args
+      onlyParser = "--only-parser" `elem` args
+      forwardedArgs = filter (`notElem` ["--only-lisp", "--only-parser"]) args
+
   astTests <- ASTTest.tests
   callTests <- CallTest.tests
   builtinsTests <- BuiltinsTest.tests
@@ -50,28 +60,40 @@ main = do
   symbolHandlingTests <- SymbolHandlingTest.tests
   booleanOpsTests <- BooleanOpsTest.tests
   parserCombinatorsTests <- ParserCombinatorsTest.tests
-  defaultMain $ testGroup "Glados Tests"
-    [ astTests
-    , callTests
-    , builtinsTests
-    , errorTests
-    , factorialTests
-    , fooTests
-    , functionTests
-    , ifTests
-    , lambdaTests
-    , superiorTests
-    , edgeCasesTests
-    , arithmeticOpsTests
-    , comparisonsTests
-    , parseErrorsTests
-    , runtimeErrorsTests
-    , defineAndRecursionTests
-    , unboundVariablesTests
-    , advancedLambdaTests
-    , dataStructuresTests
-    , specialCasesTests
-    , symbolHandlingTests
-    , booleanOpsTests
-    , parserCombinatorsTests
-    ]
+  combinatorTests <- CombTest.tests
+  lispParserTests <- LispParserTest.tests
+
+  let lispGroup = testGroup "LispCases" 
+        [ astTests
+        , callTests
+        , builtinsTests
+        , errorTests
+        , factorialTests
+        , fooTests
+        , functionTests
+        , ifTests
+        , lambdaTests
+        , superiorTests
+        , edgeCasesTests
+        , arithmeticOpsTests
+        , comparisonsTests
+        , parseErrorsTests
+        , runtimeErrorsTests
+        , defineAndRecursionTests
+        , unboundVariablesTests
+        , advancedLambdaTests
+        , dataStructuresTests
+        , specialCasesTests
+        , symbolHandlingTests
+        , booleanOpsTests
+        ]
+      parserGroup = testGroup "Parser" 
+        [ parserCombinatorsTests
+        , combinatorTests
+        , lispParserTests
+        ]
+      allGroup = testGroup "Glados Tests" [lispGroup, parserGroup]
+      toRun = if onlyParser then parserGroup else if onlyLisp then lispGroup else allGroup
+
+  -- forward tasty args (like --pattern) but strip our custom flags
+  withArgs forwardedArgs (defaultMain toRun)
