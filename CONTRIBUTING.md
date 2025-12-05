@@ -59,6 +59,27 @@ stack build
 stack test
 ```
 
+### 6. Check Test Coverage (Optional)
+
+To measure code coverage with Haskell Program Coverage (HPC), use cabal:
+
+```bash
+make coverage
+```
+
+Or directly with cabal:
+
+```bash
+cabal test --enable-coverage
+```
+
+The coverage report will be generated in:
+```
+dist-newstyle/build/x86_64-linux/ghc-9.4.8/glados-0.1.0.0/t/glados-test/hpc/vanilla/html/hpc_index.html
+```
+
+Open `hpc_index.html` in a browser to view detailed coverage statistics for each module.
+
 ## Pre-commit Hooks
 
 The project uses pre-commit hooks to maintain code quality. The following hooks run automatically before each commit:
@@ -107,9 +128,77 @@ pre-commit run run-lisp-tests --all-files
    git push origin feature/my-feature
    ```
 
+## Release Process
+
+GLaDOS uses an automated release workflow based on semantic versioning. Releases are triggered automatically when pull requests are merged into the `develop` or `main` branches.
+
+### How It Works
+
+- **Develop Branch** → **Minor Version Bump** (e.g., `0.1.0` → `0.2.0`)
+  - Minor releases contain new features and improvements.
+  - Triggered when a pull request is merged into `develop`.
+
+- **Main Branch** → **Major Version Bump** (e.g., `0.2.0` → `1.0.0`)
+  - Major releases indicate significant changes or breaking changes.
+  - Triggered when a pull request is merged into `main`.
+
+### Automated Release Steps
+
+When a pull request is merged into `develop` or `main`, the GitHub Actions workflow (`.github/workflows/release.yml`) automatically:
+
+1. Reads the current version from `package.yaml`
+2. Bumps the version (minor for develop, major for main)
+3. Updates `package.yaml` with the new version
+4. Commits the version change
+5. Creates a git tag (e.g., `v0.2.0`, `v1.0.0`)
+6. Creates a GitHub Release with release notes
+
+### Example Workflow
+
+```bash
+# Feature branch work
+git checkout -b feature/new-parser
+# ... make changes, commit, push ...
+git push origin feature/new-parser
+
+# Create a pull request to develop
+# After review, merge to develop
+
+# GitHub Actions automatically:
+# - Bumps version from 0.1.5.0 → 0.2.0.0
+# - Creates tag v0.2.0.0
+# - Creates GitHub Release "v0.2.0.0 (Minor Release)"
+
+# Later, when merging develop to main:
+# - Bumps version from 0.2.0.0 → 1.0.0.0
+# - Creates tag v1.0.0.0
+# - Creates GitHub Release "v1.0.0.0 (Major Release)"
+
+### Important Notes
+
+- The version is stored in `package.yaml` under the `version:` field
+- Only push to `develop` or `main` through pull requests (recommended)
+- The release workflow runs after CI passes
+- GitHub Actions automatically commits version changes back to the branch
+- All releases are tagged and available in the [Releases](https://github.com/ColAntoine/Glados/releases) page
+
 ## Writing Tests
 
 For detailed information on how to write and structure tests for the project, see [test/TESTING.md](test/TESTING.md).
+
+### Test Coverage Strategy
+
+The test suite is instrumented for coverage tracking via HPC (Haskell Program Coverage). All tests use direct library evaluation rather than shell subprocess calls to ensure proper coverage instrumentation.
+
+**Key components:**
+- `TestHelper.hs`: Provides `evalLisp` function that calls parser and evaluator directly
+- All LispCases test modules import and use `evalLisp` instead of `readProcess`
+- Coverage is enabled with `-fhpc` compiler flag in both library and test stanzas
+
+**To maintain coverage accuracy when adding new tests:**
+1. Use `evalLisp` from `TestHelper` to evaluate Lisp expressions directly
+2. Avoid using `readProcess` or shell subprocess calls
+3. Run `make coverage` to verify coverage reports include your new tests
 
 ## Code Style
 

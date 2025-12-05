@@ -22,6 +22,10 @@ jobs:
       - name: Run make
         run: make
 
+      - name: Run tests
+        if: github.event_name == 'pull_request'
+        run: stack test
+
       - name: Verify binary 'glados' exists
         run: |
           if [ ! -f "./glados" ]; then
