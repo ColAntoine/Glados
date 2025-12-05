@@ -10,6 +10,11 @@ import qualified LispCases.Function.Function as FunctionTest
 import qualified LispCases.If.If as IfTest
 import qualified LispCases.Lambda.Lambda as LambdaTest
 import qualified LispCases.Superior.Superior as SuperiorTest
+import qualified LispCases.EdgeCases.EdgeCases as EdgeCasesTest
+import qualified LispCases.ArithmeticOps.ArithmeticOps as ArithmeticOpsTest
+import qualified LispCases.Comparisons.Comparisons as ComparisonsTest
+import qualified LispCases.ParseErrors.ParseErrors as ParseErrorsTest
+import qualified LispCases.RuntimeErrors.RuntimeErrors as RuntimeErrorsTest
 
 main :: IO ()
 main = do
@@ -22,6 +27,11 @@ main = do
   ifTests <- IfTest.tests
   lambdaTests <- LambdaTest.tests
   superiorTests <- SuperiorTest.tests
+  edgeCasesTests <- EdgeCasesTest.tests
+  arithmeticOpsTests <- ArithmeticOpsTest.tests
+  comparisonsTests <- ComparisonsTest.tests
+  parseErrorsTests <- ParseErrorsTest.tests
+  runtimeErrorsTests <- RuntimeErrorsTest.tests
   defaultMain $ testGroup "Glados Tests"
     [ callTests
     , builtinsTests
@@ -32,4 +42,9 @@ main = do
     , ifTests
     , lambdaTests
     , superiorTests
+    , edgeCasesTests
+    , arithmeticOpsTests
+    , comparisonsTests
+    , parseErrorsTests
+    , runtimeErrorsTests
     ]

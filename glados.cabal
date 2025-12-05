@@ -48,6 +48,20 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Test.hs
   other-modules:
+      LispCases.ArithmeticOps.ArithmeticOps
+      LispCases.Builtins.Builtins
+      LispCases.Call.Call
+      LispCases.Comparisons.Comparisons
+      LispCases.EdgeCases.EdgeCases
+      LispCases.Error.Error
+      LispCases.Factorial.Factorial
+      LispCases.Foo.Foo
+      LispCases.Function.Function
+      LispCases.If.If
+      LispCases.Lambda.Lambda
+      LispCases.ParseErrors.ParseErrors
+      LispCases.RuntimeErrors.RuntimeErrors
+      LispCases.Superior.Superior
       TestHelper
   hs-source-dirs:
       test
