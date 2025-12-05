@@ -9,6 +9,10 @@ library:
   source-dirs: src
   exposed-modules:
     - Parser
+    - Evaluator
+    - Parser.LISP
+  ghc-options:
+    - -fhpc
   dependencies:
     - mtl
 executables:
@@ -20,6 +24,8 @@ tests:
   glados-test:
     main: Test.hs
     source-dirs: test
+    other-modules:
+      - TestHelper
     ghc-options:
       - -threaded
       - -rtsopts
