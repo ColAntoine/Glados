@@ -8,6 +8,7 @@ dependencies:
 library:
   source-dirs: src
   exposed-modules:
+    - AST
     - Parser
     - Evaluator
     - Parser.LISP
@@ -25,6 +26,7 @@ tests:
     main: Test.hs
     source-dirs: test
     other-modules:
+      - AST.AST
       - LispCases.AdvancedLambda.AdvancedLambda
       - LispCases.ArithmeticOps.ArithmeticOps
       - LispCases.BooleanOps.BooleanOps

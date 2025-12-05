@@ -10,11 +10,11 @@ build-type:     Simple
 
 library
   exposed-modules:
+      AST
       Parser
       Evaluator
       Parser.LISP
   other-modules:
-      AST
       Main
       Paths_glados
   hs-source-dirs:
@@ -48,6 +48,7 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Test.hs
   other-modules:
+      AST.AST
       LispCases.AdvancedLambda.AdvancedLambda
       LispCases.ArithmeticOps.ArithmeticOps
       LispCases.BooleanOps.BooleanOps

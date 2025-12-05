@@ -1,6 +1,7 @@
 module Main where
 
 import Test.Tasty
+import qualified AST.AST as ASTTest
 import qualified LispCases.Call.Call as CallTest
 import qualified LispCases.Builtins.Builtins as BuiltinsTest
 import qualified LispCases.Error.Error as ErrorTest
@@ -26,6 +27,7 @@ import qualified ParserCombinators.ParserCombinators as ParserCombinatorsTest
 
 main :: IO ()
 main = do
+  astTests <- ASTTest.tests
   callTests <- CallTest.tests
   builtinsTests <- BuiltinsTest.tests
   errorTests <- ErrorTest.tests
@@ -49,7 +51,8 @@ main = do
   booleanOpsTests <- BooleanOpsTest.tests
   parserCombinatorsTests <- ParserCombinatorsTest.tests
   defaultMain $ testGroup "Glados Tests"
-    [ callTests
+    [ astTests
+    , callTests
     , builtinsTests
     , errorTests
     , factorialTests
