@@ -15,6 +15,14 @@ import qualified LispCases.ArithmeticOps.ArithmeticOps as ArithmeticOpsTest
 import qualified LispCases.Comparisons.Comparisons as ComparisonsTest
 import qualified LispCases.ParseErrors.ParseErrors as ParseErrorsTest
 import qualified LispCases.RuntimeErrors.RuntimeErrors as RuntimeErrorsTest
+import qualified LispCases.DefineAndRecursion.DefineAndRecursion as DefineAndRecursionTest
+import qualified LispCases.UnboundVariables.UnboundVariables as UnboundVariablesTest
+import qualified LispCases.AdvancedLambda.AdvancedLambda as AdvancedLambdaTest
+import qualified LispCases.DataStructures.DataStructures as DataStructuresTest
+import qualified LispCases.SpecialCases.SpecialCases as SpecialCasesTest
+import qualified LispCases.SymbolHandling.SymbolHandling as SymbolHandlingTest
+import qualified LispCases.BooleanOps.BooleanOps as BooleanOpsTest
+import qualified ParserCombinators.ParserCombinators as ParserCombinatorsTest
 
 main :: IO ()
 main = do
@@ -32,6 +40,14 @@ main = do
   comparisonsTests <- ComparisonsTest.tests
   parseErrorsTests <- ParseErrorsTest.tests
   runtimeErrorsTests <- RuntimeErrorsTest.tests
+  defineAndRecursionTests <- DefineAndRecursionTest.tests
+  unboundVariablesTests <- UnboundVariablesTest.tests
+  advancedLambdaTests <- AdvancedLambdaTest.tests
+  dataStructuresTests <- DataStructuresTest.tests
+  specialCasesTests <- SpecialCasesTest.tests
+  symbolHandlingTests <- SymbolHandlingTest.tests
+  booleanOpsTests <- BooleanOpsTest.tests
+  parserCombinatorsTests <- ParserCombinatorsTest.tests
   defaultMain $ testGroup "Glados Tests"
     [ callTests
     , builtinsTests
@@ -47,4 +63,12 @@ main = do
     , comparisonsTests
     , parseErrorsTests
     , runtimeErrorsTests
+    , defineAndRecursionTests
+    , unboundVariablesTests
+    , advancedLambdaTests
+    , dataStructuresTests
+    , specialCasesTests
+    , symbolHandlingTests
+    , booleanOpsTests
+    , parserCombinatorsTests
     ]

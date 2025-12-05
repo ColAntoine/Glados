@@ -25,10 +25,14 @@ tests:
     main: Test.hs
     source-dirs: test
     other-modules:
+      - LispCases.AdvancedLambda.AdvancedLambda
       - LispCases.ArithmeticOps.ArithmeticOps
+      - LispCases.BooleanOps.BooleanOps
       - LispCases.Builtins.Builtins
       - LispCases.Call.Call
       - LispCases.Comparisons.Comparisons
+      - LispCases.DataStructures.DataStructures
+      - LispCases.DefineAndRecursion.DefineAndRecursion
       - LispCases.EdgeCases.EdgeCases
       - LispCases.Error.Error
       - LispCases.Factorial.Factorial
@@ -38,7 +42,11 @@ tests:
       - LispCases.Lambda.Lambda
       - LispCases.ParseErrors.ParseErrors
       - LispCases.RuntimeErrors.RuntimeErrors
+      - LispCases.SpecialCases.SpecialCases
       - LispCases.Superior.Superior
+      - LispCases.SymbolHandling.SymbolHandling
+      - LispCases.UnboundVariables.UnboundVariables
+      - ParserCombinators.ParserCombinators
       - TestHelper
     ghc-options:
       - -threaded
