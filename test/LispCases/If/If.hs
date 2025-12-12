@@ -3,8 +3,7 @@ module LispCases.If.If (tests) where
 import Test.Tasty
 import Test.Tasty.Hspec
 import Test.Hspec
-import System.Process (readProcess)
-import Control.Exception (catch, SomeException)
+import TestHelper (evalLisp)
 
 tests :: IO TestTree
 tests = testSpec "If" spec
@@ -13,18 +12,15 @@ spec :: Spec
 spec = do
     it "should handle if1.scm" $ do
         schemeCode <- readFile "test/LispCases/If/if1.scm"
-        result <- catch (readProcess "glados" ["-lisp"] schemeCode) handleError
-        result `shouldNotBe` ""
+        let result = evalLisp schemeCode
+        result `shouldNotBe` Left ""
     
     it "should handle if2.scm" $ do
         schemeCode <- readFile "test/LispCases/If/if2.scm"
-        result <- catch (readProcess "glados" ["-lisp"] schemeCode) handleError
-        result `shouldNotBe` ""
+        let result = evalLisp schemeCode
+        result `shouldNotBe` Left ""
     
     it "should handle if3.scm" $ do
         schemeCode <- readFile "test/LispCases/If/if3.scm"
-        result <- catch (readProcess "glados" ["-lisp"] schemeCode) handleError
-        result `shouldNotBe` ""
-
-handleError :: SomeException -> IO String
-handleError e = return $ "Error: " ++ show e
+        let result = evalLisp schemeCode
+        result `shouldNotBe` Left ""

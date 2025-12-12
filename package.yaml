@@ -8,9 +8,12 @@ dependencies:
 library:
   source-dirs: src
   exposed-modules:
-    - Parser
     - AST
+    - Parser
+    - Evaluator
     - Parser.LISP
+  ghc-options:
+    - -fhpc
   dependencies:
     - mtl
 executables:
@@ -22,6 +25,31 @@ tests:
   glados-test:
     main: Test.hs
     source-dirs: test
+    other-modules:
+      - AST.AST
+      - LispCases.AdvancedLambda.AdvancedLambda
+      - LispCases.ArithmeticOps.ArithmeticOps
+      - LispCases.BooleanOps.BooleanOps
+      - LispCases.Builtins.Builtins
+      - LispCases.Call.Call
+      - LispCases.Comparisons.Comparisons
+      - LispCases.DataStructures.DataStructures
+      - LispCases.DefineAndRecursion.DefineAndRecursion
+      - LispCases.EdgeCases.EdgeCases
+      - LispCases.Error.Error
+      - LispCases.Factorial.Factorial
+      - LispCases.Foo.Foo
+      - LispCases.Function.Function
+      - LispCases.If.If
+      - LispCases.Lambda.Lambda
+      - LispCases.ParseErrors.ParseErrors
+      - LispCases.RuntimeErrors.RuntimeErrors
+      - LispCases.SpecialCases.SpecialCases
+      - LispCases.Superior.Superior
+      - LispCases.SymbolHandling.SymbolHandling
+      - LispCases.UnboundVariables.UnboundVariables
+      - ParserCombinators.ParserCombinators
+      - TestHelper
     ghc-options:
       - -threaded
       - -rtsopts

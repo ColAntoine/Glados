@@ -10,15 +10,16 @@ build-type:     Simple
 
 library
   exposed-modules:
-      Parser
       AST
+      Parser
+      Evaluator
       Parser.LISP
   other-modules:
-      Evaluator
       Main
       Paths_glados
   hs-source-dirs:
       src
+  ghc-options: -fhpc
   build-depends:
       base >=4.7 && <5
     , directory
@@ -47,18 +48,30 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Test.hs
   other-modules:
+      AST.AST
+      LispCases.AdvancedLambda.AdvancedLambda
+      LispCases.ArithmeticOps.ArithmeticOps
+      LispCases.BooleanOps.BooleanOps
       LispCases.Builtins.Builtins
       LispCases.Call.Call
+      LispCases.Comparisons.Comparisons
+      LispCases.DataStructures.DataStructures
+      LispCases.DefineAndRecursion.DefineAndRecursion
+      LispCases.EdgeCases.EdgeCases
       LispCases.Error.Error
       LispCases.Factorial.Factorial
       LispCases.Foo.Foo
       LispCases.Function.Function
       LispCases.If.If
       LispCases.Lambda.Lambda
+      LispCases.ParseErrors.ParseErrors
+      LispCases.RuntimeErrors.RuntimeErrors
+      LispCases.SpecialCases.SpecialCases
       LispCases.Superior.Superior
-      Parser.Lisp.Basic
-      Parser.Parser.Combinators
-      Paths_glados
+      LispCases.SymbolHandling.SymbolHandling
+      LispCases.UnboundVariables.UnboundVariables
+      ParserCombinators.ParserCombinators
+      TestHelper
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -fhpc
