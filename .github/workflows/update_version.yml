@@ -3,6 +3,9 @@ name: Bump Minor Version on Direct Push to Develop
 on:
   push:
     branches: [develop]
+  pull_request:
+    types: [closed]
+    branches: [develop]
 
 permissions:
   contents: write
@@ -10,7 +13,7 @@ permissions:
 jobs:
   bump-version:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-actions[bot]'
+    if: (github.event_name == 'push' && github.actor != 'github-actions[bot]') || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     steps:
       - uses: actions/checkout@v4
         with:
