@@ -33,8 +33,15 @@ fclean: clean
 	rm -f $(NAME)
 	rm -f $(NAME).cabal
 	rm -f flux
+	rm -rf dist-newstyle
+	rm -rf .hpc
+	rm -f *.tix
+	rm -f glados-test.log
 	stack purge
 
 re: clean all
 
-.PHONY: all run clean re flux flux-run
+coverage:
+	cabal test --enable-coverage
+
+.PHONY: all run clean re flux flux-run coverage
