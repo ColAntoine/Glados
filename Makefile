@@ -44,4 +44,4 @@ re: clean all
 coverage:
 	cabal test --enable-coverage
 
-.PHONY: all run clean re flux flux-run coverage
+.PHONY: all run clean re coverage flux flux-run
