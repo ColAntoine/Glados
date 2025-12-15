@@ -6,4 +6,5 @@ glados
 src/Main
 .hpc
 *.tix
+flux
 .vscode
