@@ -8,6 +8,8 @@ dependencies:
   - text
   - megaparsec
   - parser-combinators
+  - containers
+  - filepath
 
 library:
   source-dirs: src
@@ -15,6 +17,7 @@ library:
     - AST
     - Parser
     - Interpreter
+    - Compiler
   ghc-options:
     - -fhpc
 

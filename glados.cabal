@@ -13,6 +13,7 @@ library
       AST
       Parser
       Interpreter
+      Compiler
   other-modules:
       Main
       Paths_glados
@@ -21,7 +22,9 @@ library
   ghc-options: -fhpc
   build-depends:
       base >=4.7 && <5
+    , containers
     , directory
+    , filepath
     , megaparsec
     , mtl
     , parser-combinators
@@ -33,6 +36,7 @@ executable glados
   main-is: Main.hs
   other-modules:
       AST
+      Compiler
       Interpreter
       Parser
       Paths_glados
@@ -40,7 +44,9 @@ executable glados
       src
   build-depends:
       base >=4.7 && <5
+    , containers
     , directory
+    , filepath
     , megaparsec
     , mtl
     , parser-combinators
@@ -58,6 +64,7 @@ test-suite glados-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -fhpc
   build-depends:
       base >=4.7 && <5
+    , containers
     , directory
     , filepath
     , glados
