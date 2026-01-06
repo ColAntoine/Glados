@@ -8,3 +8,4 @@ src/Main
 *.tix
 flux
 .vscode
+coding-style*

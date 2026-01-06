@@ -1,6 +1,6 @@
 ##
 ## EPITECH PROJECT, 2025
-## mypandoc
+## glados
 ## File description:
 ## Makefile
 ##
@@ -15,28 +15,23 @@ all:
 run: all
 	./$(NAME)
 
-# Build Flux (Part 2 language) located in `FLUX/` scaffold
-flux:
-	cd FLUX && stack build
-	cd FLUX && cp "`stack path --local-install-root`/bin/flux" ..
-
-flux-run: flux
-	./flux
+test:
+	stack test
 
 clean:
 	stack clean
-	cd FLUX && stack clean || true
 	rm -f src/Main
 	rm -rf test/__pycache__ .pytest_cache test/.pytest_cache
+	rm -f *.ll
 
 fclean: clean
 	rm -f $(NAME)
 	rm -f $(NAME).cabal
-	rm -f flux
 	rm -rf dist-newstyle
 	rm -rf .hpc
 	rm -f *.tix
 	rm -f glados-test.log
+	rm -f *.ll
 	stack purge
 
 re: clean all
@@ -44,4 +39,4 @@ re: clean all
 coverage:
 	cabal test --enable-coverage
 
-.PHONY: all run clean re coverage flux flux-run
+.PHONY: all run clean re coverage test
