@@ -122,11 +122,19 @@ pIf :: Parser Expr
 pIf = do
     reserved "if"
     cond <- pExpr
-    -- if branch: try { expr } first, then full block
-    thenBranch <- try (symbol "{" *> pExpr <* symbol "}") <|> pBlock
+    -- if branch: parse multiple expressions in braces or a full block
+    thenBranch <- try (symbol "{" *> pExprSeq <* symbol "}") <|> pBlock
     _ <- reserved "else"
-    elseBranch <- try (symbol "{" *> pExpr <* symbol "}") <|> pBlock
+    elseBranch <- try (symbol "{" *> pExprSeq <* symbol "}") <|> pBlock
     return $ EIf cond thenBranch elseBranch
+
+-- Parse a sequence of expressions (for if branches)
+pExprSeq :: Parser Expr
+pExprSeq = do
+    exprs <- some pExpr
+    return $ case exprs of
+        [e] -> e
+        _ -> ESeq exprs
 
 pList :: Parser Expr
 pList = do
@@ -210,4 +218,5 @@ desugarPipes e = case e of
     EList xs -> EList (map desugarPipes xs)
     ETuple xs -> ETuple (map desugarPipes xs)
     ERet ex -> ERet (desugarPipes ex)
+    ESeq exprs -> ESeq (map desugarPipes exprs)
     other -> other

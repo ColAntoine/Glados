@@ -47,7 +47,12 @@ initialEnv = pure
 
 primPrint :: [Value] -> IO (Either String Value)
 primPrint [v] = do
-  putStrLn (showValue v)
+  let output = showValue v
+  -- For strings, use putStr (string controls newlines)
+  -- For other types, use putStrLn (add newline)
+  case v of
+    VString _ -> putStr output
+    _ -> putStrLn output
   pure (Right v)
 primPrint _ = pure (Left "arity mismatch")
 
@@ -166,6 +171,13 @@ evalExpr env (EBlock tops me) = do
           let ex' = P.desugarPipes ex
           _ <- evalExpr e' ex'
           pure e'
+evalExpr env (ESeq exprs) = do
+  -- Evaluate expressions in sequence, return last result
+  results <- mapM (evalExpr env) exprs
+  case sequence results of
+    Left err -> pure (Left err)
+    Right [] -> pure (Right (VList []))
+    Right vals -> pure (Right (last vals))
 
 eqValue :: Value -> Value -> Bool
 eqValue (VInt a) (VInt b) = a == b
@@ -217,23 +229,35 @@ runProgram prog = do
   let loop env [] = pure (Right ())
       loop env (t:ts) = case t of
         TLFn name params body -> do
-          -- recursive closure: closure env contains the binding itself
-          -- desugar pipes in function body
-          let body' = P.desugarPipes body
-              recEnv = (name, closure') : env
-              closure' = VClosure params body' recEnv
-          loop recEnv ts
+          -- Check for duplicate declaration
+          case lookup name env of
+            Just _ -> pure (Left ("function '" ++ name ++ "' is already defined"))
+            Nothing -> do
+              -- recursive closure: closure env contains the binding itself
+              -- desugar pipes in function body
+              let body' = P.desugarPipes body
+                  recEnv = (name, closure') : env
+                  closure' = VClosure params body' recEnv
+              loop recEnv ts
         TLProc name params statements -> do
-          -- procedure: closure that executes statements
-          let recEnv = (name, procClosure') : env
-              procClosure' = VClosure params (EBlock statements Nothing) recEnv
-          loop recEnv ts
+          -- Check for duplicate declaration
+          case lookup name env of
+            Just _ -> pure (Left ("procedure '" ++ name ++ "' is already defined"))
+            Nothing -> do
+              -- procedure: closure that executes statements
+              let recEnv = (name, procClosure') : env
+                  procClosure' = VClosure params (EBlock statements Nothing) recEnv
+              loop recEnv ts
         TLLet name expr -> do
-          let expr' = P.desugarPipes expr
-          rv <- evalExpr env expr'
-          case rv of
-            Left err -> pure (Left err)
-            Right val -> loop ((name, val) : env) ts
+          -- Check for duplicate declaration
+          case lookup name env of
+            Just _ -> pure (Left ("variable '" ++ name ++ "' is already defined"))
+            Nothing -> do
+              let expr' = P.desugarPipes expr
+              rv <- evalExpr env expr'
+              case rv of
+                Left err -> pure (Left err)
+                Right val -> loop ((name, val) : env) ts
         TLExpr ex -> do
           let ex' = P.desugarPipes ex
           rv <- evalExpr env ex'
