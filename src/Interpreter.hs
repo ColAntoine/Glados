@@ -1,5 +1,6 @@
 module Interpreter
   ( runProgram
+  , Value(..)
   ) where
 
 import AST

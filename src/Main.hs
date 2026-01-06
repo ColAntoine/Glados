@@ -11,7 +11,7 @@ import System.Environment (getArgs)
 import System.Exit (exitWith, ExitCode(..))
 import Text.Megaparsec.Error (errorBundlePretty)
 import qualified Parser as P
-import Interpreter
+import Interpreter (runProgram, Value(..))
 import Compiler (compileProgramToFile)
 import System.IO (hPutStrLn, stderr)
 import System.Process (readProcessWithExitCode)
@@ -56,17 +56,14 @@ runInterpreter file = do
             hPutStrLn stderr (errorBundlePretty err) >>
             exitWith (ExitFailure 84)
         Right prog -> do
-            r <- runProgramWithPath prog file
+            r <- runProgram prog
             case r of
                 Left err ->
                     hPutStrLn stderr ("*** ERROR : " ++ err ++
                       if not (null err) && last err == '.'
                       then "" else ".") >>
                     exitWith (ExitFailure 84)
-                Right mval -> case mval of
-                    Just (VInt 0) -> exitWith ExitSuccess
-                    Just (VInt n) -> exitWith (ExitFailure (fromIntegral n))
-                    _ -> exitWith ExitSuccess
+                Right () -> exitWith ExitSuccess
 
 -- | Load and parse a single file
 loadFile :: FilePath -> IO (Either String Program)
