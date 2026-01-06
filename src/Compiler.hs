@@ -405,10 +405,10 @@ compileExpr (ECall (EVar "print") [arg]) = do
   -- Print string
   emit $ strLabel ++ ":"
   strPtr <- freshReg
-  strFmt <- addString "%s\n"
+  strFmt <- addString "%s"
   emit $ "  " ++ strPtr ++ " = inttoptr i64 " ++ raw ++ " to i8*"
   fmtPtr2 <- freshReg
-  emit $ "  " ++ fmtPtr2 ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++
+  emit $ "  " ++ fmtPtr2 ++ " = getelementptr [3 x i8], [3 x i8]* @.str." ++
     show strFmt ++ ", i64 0, i64 0"
   emit $ "  call i32 (i8*, ...) @printf(i8* " ++ fmtPtr2 ++
     ", i8* " ++ strPtr ++ ")"
@@ -595,6 +595,13 @@ compileExpr (EBlock stmts mExpr) =
     Nothing -> boxInt "0"
 
 compileExpr (ERet e) = compileExpr e
+
+compileExpr (ESeq exprs) = do
+  case exprs of
+    [] -> boxInt "0"
+    _ -> do
+      results <- mapM compileExpr exprs
+      return (last results)
 
 compileClosureCall :: String -> [Expr] -> Compiler String
 compileClosureCall closureVal args = do
