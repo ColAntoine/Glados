@@ -11,6 +11,7 @@ genPrelude = sequence_ [
   emitFunc "declare void @free(i8*)",
   emitFunc "declare i8* @strcpy(i8*, i8*)",
   emitFunc "declare i64 @strlen(i8*)",
+  emitFunc "declare void @exit(i32)",
   emitFunc "",
   emitFunc "; Boxed value type: { i64 tag, i64 data }",
   emitFunc "%Value = type { i64, i64 }",
