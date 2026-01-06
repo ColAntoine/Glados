@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2026
--- Glados
--- File description:
--- Haskell parser for Flux language
--}
-
 {-# LANGUAGE OverloadedStrings #-}
 module Parser
     ( parseProgram
@@ -18,17 +11,27 @@ import Data.Functor (void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Megaparsec.Char.Lexer as L (charLiteral)
-import Data.Char (isAlphaNum)
+import Text.Megaparsec (manyTill)
+import Data.Char (ord, isAlphaNum)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Control.Monad.Combinators.Expr (Operator(..), makeExprParser)
 import AST
 
 type Parser = Parsec Void T.Text
+
+-- Space consumer: skips spaces, tabs, newlines, and line comments
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "//") empty
 
+-- Space consumer that does NOT consume newlines (for line-sensitive parsing)
+scnl :: Parser ()
+scnl = L.space (void $ takeWhile1P Nothing (\c -> c == ' ' || c == '\t')) (L.skipLineComment "//") empty
+
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
+
+lexemeNL :: Parser a -> Parser a
+lexemeNL = L.lexeme scnl
 
 symbol :: T.Text -> Parser T.Text
 symbol = L.symbol sc
@@ -49,33 +52,23 @@ pProgram :: Parser Program
 pProgram = sc *> many pTopLevel <* eof
 
 pTopLevel :: Parser TopLevel
-pTopLevel = choice [pImport, pFn, pLet, TLExpr <$> pExpr]
-
-pImport :: Parser TopLevel
-pImport = do
-    reserved "import"
-    _ <- symbol "{"
-    funcs <- identifier `sepBy` (symbol ",")
-    _ <- symbol "}"
-    reserved "from"
-    filePath <- stringLiteral
-    return $ TLImport filePath funcs
-
-stringLiteral :: Parser String
-stringLiteral = lexeme $
-    between (char '"') (char '"') (many (satisfy (/= '"')))
+pTopLevel = choice [pFn, pLet, TLExpr <$> pExpr]
 
 pFn :: Parser TopLevel
 pFn = do
     reserved "fn"
     name <- identifier
     params <- parens (identifier `sepBy` symbol ",")
+    -- check if it's a returning function (has =) or procedure (no =)
     hasEquals <- optional (symbol "=")
     case hasEquals of
         Just _ -> do
+            -- returning function: fn name(params) = { ... } or fn name(params) = expr
+            -- Block has explicit braces, expression stops at newline
             body <- pBlock <|> pExpr
             return $ TLFn name params body
         Nothing -> do
+            -- procedure: fn name(params) { statements }
             _ <- symbol "{"
             statements <- many pTopLevel
             _ <- symbol "}"
@@ -92,7 +85,9 @@ pLet = do
 pBlock :: Parser Expr
 pBlock = do
     _ <- symbol "{"
+    -- Parse top-level forms (fn/let/expr), but don't consume final expression as TLExpr
     tops <- many (try (pFn <|> pLet))
+    -- Now get optional final expression
     mexpr <- optional pExpr
     _ <- symbol "}"
     return $ EBlock tops mexpr
@@ -110,7 +105,7 @@ pTerm = choice
     , pIf
     , pList
     , pRet
-    , try pTuple
+    , try pTuple  -- must try before parens
     , EVar <$> identifier
     , parens pExpr
     , pLambda
@@ -127,10 +122,19 @@ pIf :: Parser Expr
 pIf = do
     reserved "if"
     cond <- pExpr
-    thenBranch <- try (symbol "{" *> pExpr <* symbol "}") <|> pBlock
+    -- if branch: parse multiple expressions in braces or a full block
+    thenBranch <- try (symbol "{" *> pExprSeq <* symbol "}") <|> pBlock
     _ <- reserved "else"
-    elseBranch <- try (symbol "{" *> pExpr <* symbol "}") <|> pBlock
+    elseBranch <- try (symbol "{" *> pExprSeq <* symbol "}") <|> pBlock
     return $ EIf cond thenBranch elseBranch
+
+-- Parse a sequence of expressions (for if branches)
+pExprSeq :: Parser Expr
+pExprSeq = do
+    exprs <- some pExpr
+    return $ case exprs of
+        [e] -> e
+        _ -> ESeq exprs
 
 pList :: Parser Expr
 pList = do
@@ -165,22 +169,22 @@ pCall :: Parser Expr
 pCall = do
     name <- try $ do
         n <- takeWhile1P Nothing (\c -> isAlphaNum c || c == '_')
+        -- Consume only spaces/tabs, NOT newlines
         _ <- takeWhileP Nothing (\c -> c == ' ' || c == '\t')
+        -- Must be immediately followed by '(' (no newline between)
         lookAhead (char '(')
         return n
-    sc
+    sc  -- Now consume all whitespace including the spaces we skipped
     args <- parens (pExpr `sepBy` symbol ",")
     return $ ECall (EVar (T.unpack name)) args
 
 operatorTable :: [[Operator Parser Expr]]
 operatorTable =
   [ [ prefix "-" (EUnary "-") , prefix "!" (EUnary "!") ]
-  , [ binary "*" (EBinary Mul) , binary "/" (EBinary Div)
-    , binary "%" (EBinary Mod) ]
+  , [ binary "*" (EBinary Mul) , binary "/" (EBinary Div) , binary "%" (EBinary Mod) ]
   , [ binary "+" (EBinary Add) , binary "-" (EBinary Sub) ]
-  , [ binary "==" (EBinary Eq) , binary "!=" (EBinary Neq)
-    , binary "<=" (EBinary Lte) , binary ">=" (EBinary Gte)
-    , binary "<" (EBinary Lt) , binary ">" (EBinary Gt) ]
+    , [ binary "==" (EBinary Eq) , binary "!=" (EBinary Neq) , binary "<=" (EBinary Lte)
+        , binary ">=" (EBinary Gte) , binary "<" (EBinary Lt) , binary ">" (EBinary Gt) ]
   , [ binary "&&" (EBinary And) ]
   , [ binary "||" (EBinary Or) ]
   , [ binary "|>" (EBinary Pipe) ]
@@ -189,17 +193,21 @@ operatorTable =
     binary  name f = InfixL  (f <$ symbol (T.pack name))
     prefix  name f = Prefix  (f <$ symbol (T.pack name))
 
+-- Public parse function
 parseProgram :: String -> Either (ParseErrorBundle T.Text Void) Program
 parseProgram input = runParser pProgram "<input>" (T.pack input)
 
+-- Desugar pipeline operators: a |> b  =>  b(a), with tuple unpacking
 desugarPipes :: Expr -> Expr
 desugarPipes e = case e of
     EBinary Pipe a b ->
         let a' = desugarPipes a
             b' = desugarPipes b
         in case (a', b') of
+            -- tuple |> func => func(tuple elements unpacked)
             (ETuple elems, ECall f args) -> ECall f (elems ++ args)
             (ETuple elems, _) -> ECall b' elems
+            -- normal pipeline
             (_, ECall f args) -> ECall f (a' : args)
             (_, _) -> ECall b' [a']
     EBinary op l r -> EBinary op (desugarPipes l) (desugarPipes r)
@@ -210,4 +218,5 @@ desugarPipes e = case e of
     EList xs -> EList (map desugarPipes xs)
     ETuple xs -> ETuple (map desugarPipes xs)
     ERet ex -> ERet (desugarPipes ex)
+    ESeq exprs -> ESeq (map desugarPipes exprs)
     other -> other

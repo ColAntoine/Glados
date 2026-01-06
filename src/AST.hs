@@ -44,4 +44,5 @@ data Expr
     | ETuple [Expr]
     | EBlock [TopLevel] (Maybe Expr)
     | ERet Expr
+    | ESeq [Expr]  -- Sequence of expressions
     deriving (Eq, Show)
