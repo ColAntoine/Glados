@@ -29,8 +29,10 @@ main = do
         Just (Interpret file) -> runInterpreter file
         Just (Compile files output) -> runCompilerMulti files output
         Nothing ->
-            hPutStrLn stderr "Usage: glados -i <file>                  (interpret)" >>
-            hPutStrLn stderr "       glados -c <files...> [-o out]  (compile)" >>
+            hPutStrLn stderr
+              "Usage: glados -i <file>                  (interpret)" >>
+            hPutStrLn stderr
+              "       glados -c <files...> [-o out]  (compile)" >>
             exitWith (ExitFailure 84)
 
 data Mode = Interpret FilePath | Compile [FilePath] FilePath
@@ -57,7 +59,9 @@ runInterpreter file = do
             r <- runProgramWithPath prog file
             case r of
                 Left err ->
-                    hPutStrLn stderr ("*** ERROR : " ++ err ++ if not (null err) && last err == '.' then "" else ".") >>
+                    hPutStrLn stderr ("*** ERROR : " ++ err ++
+                      if not (null err) && last err == '.'
+                      then "" else ".") >>
                     exitWith (ExitFailure 84)
                 Right mval -> case mval of
                     Just (VInt 0) -> exitWith ExitSuccess
@@ -116,30 +120,42 @@ loadMultipleFiles files = do
 -- | Check that all called functions are defined
 checkFunctionDefinitions :: Program -> Either String ()
 checkFunctionDefinitions prog =
-    let definedFuncs = Set.fromList ([name | TLFn name _ _ <- prog] ++
-                                     [name | TLProc name _ _ <- prog])
+    let definedFuncs = Set.fromList
+          ([name | TLFn name _ _ <- prog] ++
+           [name | TLProc name _ _ <- prog])
         calledFuncs = findCalledFuncs prog
-        undefined = Set.filter (not . isBuiltin) (calledFuncs Set.\\ definedFuncs)
+        undefined = Set.filter (not . isBuiltin)
+          (calledFuncs Set.\\ definedFuncs)
     in if Set.null undefined
         then Right ()
-        else Left $ "Undefined functions: " ++ show (Set.toList undefined)
+        else Left $
+          "Undefined functions: " ++ show (Set.toList undefined)
 
 -- | Find all function calls in a program
 findCalledFuncs :: Program -> Set.Set String
-findCalledFuncs prog = Set.fromList [name | TLExpr expr <- prog, name <- findCallsInExpr expr] <>
-                      Set.unions [Set.fromList (findCallsInExpr body) | TLFn _ _ body <- prog] <>
-                      Set.unions [Set.fromList (findCallsInTopLevel top) | TLProc _ _ tops <- prog, top <- tops]
+findCalledFuncs prog =
+  Set.fromList [name | TLExpr expr <- prog,
+                       name <- findCallsInExpr expr] <>
+  Set.unions [Set.fromList (findCallsInExpr body) |
+              TLFn _ _ body <- prog] <>
+  Set.unions [Set.fromList (findCallsInTopLevel top) |
+              TLProc _ _ tops <- prog, top <- tops]
 
 findCallsInExpr :: Expr -> [String]
-findCallsInExpr (ECall (EVar name) args) = name : concatMap findCallsInExpr args
-findCallsInExpr (ECall expr args) = findCallsInExpr expr ++ concatMap findCallsInExpr args
-findCallsInExpr (EBinary _ e1 e2) = findCallsInExpr e1 ++ findCallsInExpr e2
+findCallsInExpr (ECall (EVar name) args) =
+  name : concatMap findCallsInExpr args
+findCallsInExpr (ECall expr args) =
+  findCallsInExpr expr ++ concatMap findCallsInExpr args
+findCallsInExpr (EBinary _ e1 e2) =
+  findCallsInExpr e1 ++ findCallsInExpr e2
 findCallsInExpr (EUnary _ e) = findCallsInExpr e
-findCallsInExpr (EIf e1 e2 e3) = findCallsInExpr e1 ++ findCallsInExpr e2 ++ findCallsInExpr e3
+findCallsInExpr (EIf e1 e2 e3) =
+  findCallsInExpr e1 ++ findCallsInExpr e2 ++ findCallsInExpr e3
 findCallsInExpr (ELam _ body) = findCallsInExpr body
 findCallsInExpr (EList es) = concatMap findCallsInExpr es
 findCallsInExpr (ETuple es) = concatMap findCallsInExpr es
-findCallsInExpr (EBlock tops mexpr) = findCallsInTopLevel `concatMap` tops ++ maybe [] findCallsInExpr mexpr
+findCallsInExpr (EBlock tops mexpr) =
+  findCallsInTopLevel `concatMap` tops ++ maybe [] findCallsInExpr mexpr
 findCallsInExpr _ = []
 
 findCallsInTopLevel :: TopLevel -> [String]
@@ -173,11 +189,15 @@ runCompilerMulti files output = do
                     in compileProgramToFile prog llFile >>
                        do
                            -- Call clang to compile the LLVM IR
-                           (exitCode, _, clangErr) <- readProcessWithExitCode "clang" [llFile, "-o", output] ""
+                           (exitCode, _, clangErr) <-
+                             readProcessWithExitCode "clang"
+                               [llFile, "-o", output] ""
                            case exitCode of
                                ExitSuccess ->
                                    removeFile llFile >>
                                    return ()
                                ExitFailure _ ->
-                                   (hPutStrLn stderr $ "Clang compilation failed:\n" ++ clangErr) >>
+                                   (hPutStrLn stderr $
+                                     "Clang compilation failed:\n" ++
+                                     clangErr) >>
                                    exitWith (ExitFailure 84)

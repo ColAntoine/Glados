@@ -56,7 +56,8 @@ primPrint [v] = putStrLn (showValue v) >> pure (Right v)
 primPrint _ = pure (Left "arity mismatch")
 
 primMap :: [Value] -> IO (Either String Value)
-primMap [VClosure params body closEnv, VList vals] = primMap [VList vals, VClosure params body closEnv]
+primMap [VClosure params body closEnv, VList vals] =
+  primMap [VList vals, VClosure params body closEnv]
 primMap [VList vals, VClosure params body closEnv] = case params of
   [p] -> do
     results <- forM vals $ \v ->
@@ -162,8 +163,10 @@ eqValue :: Value -> Value -> Bool
 eqValue (VInt a) (VInt b) = a == b
 eqValue (VBool a) (VBool b) = a == b
 eqValue (VString a) (VString b) = a == b
-eqValue (VList as) (VList bs) = length as == length bs && all (uncurry eqValue) (zip as bs)
-eqValue (VTuple as) (VTuple bs) = length as == length bs && all (uncurry eqValue) (zip as bs)
+eqValue (VList as) (VList bs) =
+  length as == length bs && all (uncurry eqValue) (zip as bs)
+eqValue (VTuple as) (VTuple bs) =
+  length as == length bs && all (uncurry eqValue) (zip as bs)
 eqValue _ _ = False
 
 evalBinary :: Op -> Value -> Value -> IO (Either String Value)
@@ -212,13 +215,15 @@ loadFileWithImports file loaded
                     Right prog -> do
                         let newLoaded = Set.insert file loaded
                         -- Process imports
-                        importedProgs <- forM [path | TLImport path _ <- prog] $ \path ->
+                        importedProgs <-
+                          forM [path | TLImport path _ <- prog] $ \path ->
                             let baseDir = takeDirectory file
                                 importPath = baseDir </> path
                             in loadFileWithImports importPath newLoaded
                         case sequence importedProgs of
                             Left err -> return $ Left err
-                            Right importedProg -> return $ Right (concat importedProg ++ prog)
+                            Right importedProg ->
+                              return $ Right (concat importedProg ++ prog)
 
 runProgram :: Program -> IO (Either String (Maybe Value))
 runProgram prog = runProgramWithPath prog ""
@@ -245,7 +250,8 @@ runProgramWithPath prog filePath = do
               in loop recEnv ts Nothing
             TLProc name params statements ->
               let recEnv = (name, procClosure') : env
-                  procClosure' = VClosure params (EBlock statements Nothing) recEnv
+                  procClosure' =
+                    VClosure params (EBlock statements Nothing) recEnv
               in loop recEnv ts Nothing
             TLLet name expr -> do
               let expr' = P.desugarPipes expr

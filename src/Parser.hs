@@ -62,7 +62,8 @@ pImport = do
     return $ TLImport filePath funcs
 
 stringLiteral :: Parser String
-stringLiteral = lexeme $ between (char '"') (char '"') (many (satisfy (/= '"')))
+stringLiteral = lexeme $
+    between (char '"') (char '"') (many (satisfy (/= '"')))
 
 pFn :: Parser TopLevel
 pFn = do
@@ -174,10 +175,12 @@ pCall = do
 operatorTable :: [[Operator Parser Expr]]
 operatorTable =
   [ [ prefix "-" (EUnary "-") , prefix "!" (EUnary "!") ]
-  , [ binary "*" (EBinary Mul) , binary "/" (EBinary Div) , binary "%" (EBinary Mod) ]
+  , [ binary "*" (EBinary Mul) , binary "/" (EBinary Div)
+    , binary "%" (EBinary Mod) ]
   , [ binary "+" (EBinary Add) , binary "-" (EBinary Sub) ]
-  , [ binary "==" (EBinary Eq) , binary "!=" (EBinary Neq) , binary "<=" (EBinary Lte)
-    , binary ">=" (EBinary Gte) , binary "<" (EBinary Lt) , binary ">" (EBinary Gt) ]
+  , [ binary "==" (EBinary Eq) , binary "!=" (EBinary Neq)
+    , binary "<=" (EBinary Lte) , binary ">=" (EBinary Gte)
+    , binary "<" (EBinary Lt) , binary ">" (EBinary Gt) ]
   , [ binary "&&" (EBinary And) ]
   , [ binary "||" (EBinary Or) ]
   , [ binary "|>" (EBinary Pipe) ]

@@ -72,7 +72,8 @@ getLocal :: String -> Compiler (Maybe String)
 getLocal name = gets (M.lookup name . csLocals)
 
 setLocal :: String -> String -> Compiler ()
-setLocal name reg = modify $ \s -> s { csLocals = M.insert name reg (csLocals s) }
+setLocal name reg =
+  modify $ \s -> s { csLocals = M.insert name reg (csLocals s) }
 
 withLocals :: M.Map String String -> Compiler a -> Compiler a
 withLocals newLocals action = do
@@ -139,7 +140,8 @@ boxInt val = do
   r1 <- freshReg
   r2 <- freshReg
   result <- freshReg
-  emit $ "  " ++ r1 ++ " = insertvalue %Value { i64 0, i64 undef }, i64 " ++ val ++ ", 1"
+  emit $ "  " ++ r1 ++
+    " = insertvalue %Value { i64 0, i64 undef }, i64 " ++ val ++ ", 1"
   return r1
 
 -- | Box a boolean as a Bool value (tag 1)
@@ -149,7 +151,9 @@ boxBool val = do
   r2 <- freshReg
   extended <- freshReg
   emit $ "  " ++ extended ++ " = zext i1 " ++ val ++ " to i64"
-  emit $ "  " ++ r1 ++ " = insertvalue %Value { i64 1, i64 undef }, i64 " ++ extended ++ ", 1"
+  emit $ "  " ++ r1 ++
+    " = insertvalue %Value { i64 1, i64 undef }, i64 " ++
+    extended ++ ", 1"
   return r1
 
 -- | Box a string pointer as a String value (tag 2)
@@ -158,7 +162,9 @@ boxString ptr = do
   r1 <- freshReg
   ptrInt <- freshReg
   emit $ "  " ++ ptrInt ++ " = ptrtoint i8* " ++ ptr ++ " to i64"
-  emit $ "  " ++ r1 ++ " = insertvalue %Value { i64 2, i64 undef }, i64 " ++ ptrInt ++ ", 1"
+  emit $ "  " ++ r1 ++
+    " = insertvalue %Value { i64 2, i64 undef }, i64 " ++
+    ptrInt ++ ", 1"
   return r1
 
 -- | Unbox to get raw i64 value
@@ -182,7 +188,8 @@ compileExpr (EInt n) = boxInt (show n)
 compileExpr (EBool b) = do
   let val = if b then "1" else "0"
   r <- freshReg
-  emit $ "  " ++ r ++ " = insertvalue %Value { i64 1, i64 undef }, i64 " ++ val ++ ", 1"
+  emit $ "  " ++ r ++
+    " = insertvalue %Value { i64 1, i64 undef }, i64 " ++ val ++ ", 1"
   return r
 
 compileExpr (EString s) = do
@@ -316,7 +323,8 @@ compileExpr (EIf cond thenE elseE) = do
   elseLabel <- freshLabel "else"
   endLabel <- freshLabel "endif"
   
-  emit $ "  br i1 " ++ condBool ++ ", label %" ++ thenLabel ++ ", label %" ++ elseLabel
+  emit $ "  br i1 " ++ condBool ++ ", label %" ++ thenLabel ++
+    ", label %" ++ elseLabel
   
   -- Then branch
   emit $ thenLabel ++ ":"
@@ -334,8 +342,9 @@ compileExpr (EIf cond thenE elseE) = do
   -- Merge
   emit $ endLabel ++ ":"
   result <- freshReg
-  emit $ "  " ++ result ++ " = phi %Value [ " ++ thenResult ++ ", %" ++ thenBlock ++ 
-         " ], [ " ++ elseResult ++ ", %" ++ elseBlock ++ " ]"
+  emit $ "  " ++ result ++ " = phi %Value [ " ++ thenResult ++
+    ", %" ++ thenBlock ++ " ], [ " ++ elseResult ++
+    ", %" ++ elseBlock ++ " ]"
   return result
 
 compileExpr (ECall (EVar "print") [arg]) = do
@@ -356,20 +365,24 @@ compileExpr (ECall (EVar "print") [arg]) = do
   endLabel <- freshLabel "print.end"
   notIntLabel <- freshLabel "print.notint"
   
-  emit $ "  br i1 " ++ isInt ++ ", label %" ++ intLabel ++ ", label %" ++ notIntLabel
+  emit $ "  br i1 " ++ isInt ++ ", label %" ++ intLabel ++
+    ", label %" ++ notIntLabel
   
   -- Print int
   emit $ intLabel ++ ":"
   intFmt <- addString "%ld\n"
   fmtPtr1 <- freshReg
-  emit $ "  " ++ fmtPtr1 ++ " = getelementptr [6 x i8], [6 x i8]* @.str." ++ show intFmt ++ ", i64 0, i64 0"
-  emit $ "  call i32 (i8*, ...) @printf(i8* " ++ fmtPtr1 ++ ", i64 " ++ raw ++ ")"
+  emit $ "  " ++ fmtPtr1 ++ " = getelementptr [6 x i8], [6 x i8]* @.str." ++
+    show intFmt ++ ", i64 0, i64 0"
+  emit $ "  call i32 (i8*, ...) @printf(i8* " ++ fmtPtr1 ++
+    ", i64 " ++ raw ++ ")"
   emit $ "  br label %" ++ endLabel
   
   -- Check if bool
   emit $ notIntLabel ++ ":"
   emit $ "  " ++ isBool ++ " = icmp eq i64 " ++ tag ++ ", 1"
-  emit $ "  br i1 " ++ isBool ++ ", label %" ++ boolLabel ++ ", label %" ++ strLabel
+  emit $ "  br i1 " ++ isBool ++ ", label %" ++ boolLabel ++
+    ", label %" ++ strLabel
   
   -- Print bool
   emit $ boolLabel ++ ":"
@@ -379,10 +392,13 @@ compileExpr (ECall (EVar "print") [arg]) = do
   emit $ "  " ++ boolCond ++ " = icmp ne i64 " ++ raw ++ ", 0"
   truePtr <- freshReg
   falsePtr <- freshReg
-  emit $ "  " ++ truePtr ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++ show trueStr ++ ", i64 0, i64 0"
-  emit $ "  " ++ falsePtr ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++ show falseStr ++ ", i64 0, i64 0"
+  emit $ "  " ++ truePtr ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++
+    show trueStr ++ ", i64 0, i64 0"
+  emit $ "  " ++ falsePtr ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++
+    show falseStr ++ ", i64 0, i64 0"
   selPtr <- freshReg
-  emit $ "  " ++ selPtr ++ " = select i1 " ++ boolCond ++ ", i8* " ++ truePtr ++ ", i8* " ++ falsePtr
+  emit $ "  " ++ selPtr ++ " = select i1 " ++ boolCond ++ ", i8* " ++
+    truePtr ++ ", i8* " ++ falsePtr
   emit $ "  call i32 (i8*, ...) @printf(i8* " ++ selPtr ++ ")"
   emit $ "  br label %" ++ endLabel
   
@@ -392,8 +408,10 @@ compileExpr (ECall (EVar "print") [arg]) = do
   strFmt <- addString "%s\n"
   emit $ "  " ++ strPtr ++ " = inttoptr i64 " ++ raw ++ " to i8*"
   fmtPtr2 <- freshReg
-  emit $ "  " ++ fmtPtr2 ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++ show strFmt ++ ", i64 0, i64 0"
-  emit $ "  call i32 (i8*, ...) @printf(i8* " ++ fmtPtr2 ++ ", i8* " ++ strPtr ++ ")"
+  emit $ "  " ++ fmtPtr2 ++ " = getelementptr [4 x i8], [4 x i8]* @.str." ++
+    show strFmt ++ ", i64 0, i64 0"
+  emit $ "  call i32 (i8*, ...) @printf(i8* " ++ fmtPtr2 ++
+    ", i8* " ++ strPtr ++ ")"
   emit $ "  br label %" ++ endLabel
   
   emit $ endLabel ++ ":"
@@ -413,7 +431,8 @@ compileExpr (ECall (EVar name) args) = do
         return ptr
       result <- freshReg
       let argList = intercalate ", " (map ("%Value* " ++) argPtrs)
-      emit $ "  " ++ result ++ " = call %Value @" ++ name ++ "(" ++ argList ++ ")"
+      emit $ "  " ++ result ++ " = call %Value @" ++ name ++
+        "(" ++ argList ++ ")"
       return result
     else do
       -- Try to load as closure from local
@@ -464,10 +483,12 @@ compileExpr (ELam params body) = do
   -- Return a closure value (simplified: just function pointer as i64)
   funcPtr <- freshReg
   result <- freshReg
-  emit $ "  " ++ funcPtr ++ " = ptrtoint %Value (" ++ 
-         intercalate ", " (replicate (length params) "%Value*") ++ 
+  emit $ "  " ++ funcPtr ++ " = ptrtoint %Value (" ++
+         intercalate ", " (replicate (length params) "%Value*") ++
          ")* @" ++ closureName ++ " to i64"
-  emit $ "  " ++ result ++ " = insertvalue %Value { i64 5, i64 undef }, i64 " ++ funcPtr ++ ", 1"
+  emit $ "  " ++ result ++
+    " = insertvalue %Value { i64 5, i64 undef }, i64 " ++
+    funcPtr ++ ", 1"
   return result
 
 compileExpr (EList elems) = do
@@ -482,40 +503,49 @@ compileExpr (EList elems) = do
   
   -- Allocate elements
   if n > 0 then do
-    emit $ "  " ++ elemsPtr ++ " = call i8* @malloc(i64 " ++ show (n * 16) ++ ")"
+    emit $ "  " ++ elemsPtr ++ " = call i8* @malloc(i64 " ++
+      show (n * 16) ++ ")"
     elemsTyped <- freshReg
-    emit $ "  " ++ elemsTyped ++ " = bitcast i8* " ++ elemsPtr ++ " to %Value*"
+    emit $ "  " ++ elemsTyped ++ " = bitcast i8* " ++ elemsPtr ++
+      " to %Value*"
     
     -- Store size
     sizePtr <- freshReg
-    emit $ "  " ++ sizePtr ++ " = getelementptr %Array, %Array* " ++ arrayTyped ++ ", i32 0, i32 0"
+    emit $ "  " ++ sizePtr ++ " = getelementptr %Array, %Array* " ++
+      arrayTyped ++ ", i32 0, i32 0"
     emit $ "  store i64 " ++ show n ++ ", i64* " ++ sizePtr
     
     -- Store elements pointer
     dataPtr <- freshReg
-    emit $ "  " ++ dataPtr ++ " = getelementptr %Array, %Array* " ++ arrayTyped ++ ", i32 0, i32 1"
+    emit $ "  " ++ dataPtr ++ " = getelementptr %Array, %Array* " ++
+      arrayTyped ++ ", i32 0, i32 1"
     emit $ "  store %Value* " ++ elemsTyped ++ ", %Value** " ++ dataPtr
     
     -- Store each element
     forM_ (zip [0..] elems) $ \(i, elem) -> do
       val <- compileExpr elem
       elemPtr <- freshReg
-      emit $ "  " ++ elemPtr ++ " = getelementptr %Value, %Value* " ++ elemsTyped ++ ", i64 " ++ show i
+      emit $ "  " ++ elemPtr ++ " = getelementptr %Value, %Value* " ++
+        elemsTyped ++ ", i64 " ++ show i
       emit $ "  store %Value " ++ val ++ ", %Value* " ++ elemPtr
   else do
     -- Empty list
     sizePtr <- freshReg
-    emit $ "  " ++ sizePtr ++ " = getelementptr %Array, %Array* " ++ arrayTyped ++ ", i32 0, i32 0"
+    emit $ "  " ++ sizePtr ++ " = getelementptr %Array, %Array* " ++
+      arrayTyped ++ ", i32 0, i32 0"
     emit $ "  store i64 0, i64* " ++ sizePtr
     dataPtr <- freshReg
-    emit $ "  " ++ dataPtr ++ " = getelementptr %Array, %Array* " ++ arrayTyped ++ ", i32 0, i32 1"
+    emit $ "  " ++ dataPtr ++ " = getelementptr %Array, %Array* " ++
+      arrayTyped ++ ", i32 0, i32 1"
     emit $ "  store %Value* null, %Value** " ++ dataPtr
   
   -- Box the array pointer as list (tag 3)
   ptrInt <- freshReg
   result <- freshReg
   emit $ "  " ++ ptrInt ++ " = ptrtoint i8* " ++ arrayPtr ++ " to i64"
-  emit $ "  " ++ result ++ " = insertvalue %Value { i64 3, i64 undef }, i64 " ++ ptrInt ++ ", 1"
+  emit $ "  " ++ result ++
+    " = insertvalue %Value { i64 3, i64 undef }, i64 " ++
+    ptrInt ++ ", 1"
   return result
 
 compileExpr (ETuple elems) = do
@@ -528,28 +558,35 @@ compileExpr (ETuple elems) = do
   emit $ "  " ++ arrayTyped ++ " = bitcast i8* " ++ arrayPtr ++ " to %Array*"
   
   elemsPtr <- freshReg
-  emit $ "  " ++ elemsPtr ++ " = call i8* @malloc(i64 " ++ show (n * 16) ++ ")"
+  emit $ "  " ++ elemsPtr ++ " = call i8* @malloc(i64 " ++
+    show (n * 16) ++ ")"
   elemsTyped <- freshReg
-  emit $ "  " ++ elemsTyped ++ " = bitcast i8* " ++ elemsPtr ++ " to %Value*"
+  emit $ "  " ++ elemsTyped ++ " = bitcast i8* " ++ elemsPtr ++
+    " to %Value*"
   
   sizePtr <- freshReg
-  emit $ "  " ++ sizePtr ++ " = getelementptr %Array, %Array* " ++ arrayTyped ++ ", i32 0, i32 0"
+  emit $ "  " ++ sizePtr ++ " = getelementptr %Array, %Array* " ++
+    arrayTyped ++ ", i32 0, i32 0"
   emit $ "  store i64 " ++ show n ++ ", i64* " ++ sizePtr
   
   dataPtr <- freshReg
-  emit $ "  " ++ dataPtr ++ " = getelementptr %Array, %Array* " ++ arrayTyped ++ ", i32 0, i32 1"
+  emit $ "  " ++ dataPtr ++ " = getelementptr %Array, %Array* " ++
+    arrayTyped ++ ", i32 0, i32 1"
   emit $ "  store %Value* " ++ elemsTyped ++ ", %Value** " ++ dataPtr
   
   forM_ (zip [0..] elems) $ \(i, elem) -> do
     val <- compileExpr elem
     elemPtr <- freshReg
-    emit $ "  " ++ elemPtr ++ " = getelementptr %Value, %Value* " ++ elemsTyped ++ ", i64 " ++ show i
+    emit $ "  " ++ elemPtr ++ " = getelementptr %Value, %Value* " ++
+      elemsTyped ++ ", i64 " ++ show i
     emit $ "  store %Value " ++ val ++ ", %Value* " ++ elemPtr
   
   ptrInt <- freshReg
   result <- freshReg
   emit $ "  " ++ ptrInt ++ " = ptrtoint i8* " ++ arrayPtr ++ " to i64"
-  emit $ "  " ++ result ++ " = insertvalue %Value { i64 4, i64 undef }, i64 " ++ ptrInt ++ ", 1"
+  emit $ "  " ++ result ++
+    " = insertvalue %Value { i64 4, i64 undef }, i64 " ++
+    ptrInt ++ ", 1"
   return result
 
 compileExpr (EBlock stmts mExpr) =
@@ -577,11 +614,13 @@ compileClosureCall closureVal args = do
   let nArgs = length args
   funcTyped <- freshReg
   let argTypes = intercalate ", " (replicate nArgs "%Value*")
-  emit $ "  " ++ funcTyped ++ " = inttoptr i64 " ++ funcPtr ++ " to %Value (" ++ argTypes ++ ")*"
+  emit $ "  " ++ funcTyped ++ " = inttoptr i64 " ++ funcPtr ++
+    " to %Value (" ++ argTypes ++ ")*"
   
   result <- freshReg
   let argList = intercalate ", " ["%Value* " ++ r | r <- argRegs]
-  emit $ "  " ++ result ++ " = call %Value " ++ funcTyped ++ "(" ++ argList ++ ")"
+  emit $ "  " ++ result ++ " = call %Value " ++ funcTyped ++
+    "(" ++ argList ++ ")"
   return result
 
 -- | Compile a top-level form
@@ -667,8 +706,10 @@ compileProgram prog = evalState action initialState
       
       -- First pass: collect all function names
       forM_ prog $ \tl -> case tl of
-        TLFn name _ _ -> modify $ \s -> s { csFuncNames = name : csFuncNames s }
-        TLProc name _ _ -> modify $ \s -> s { csFuncNames = name : csFuncNames s }
+        TLFn name _ _ ->
+          modify $ \s -> s { csFuncNames = name : csFuncNames s }
+        TLProc name _ _ ->
+          modify $ \s -> s { csFuncNames = name : csFuncNames s }
         _ -> return ()
       
       -- Compile all top-level functions first
@@ -694,7 +735,8 @@ compileProgram prog = evalState action initialState
           retInt <- freshLabel "ret.int"
           retZero <- freshLabel "ret.zero"
           
-          emit $ "  br i1 " ++ isInt ++ ", label %" ++ retInt ++ ", label %" ++ retZero
+          emit $ "  br i1 " ++ isInt ++ ", label %" ++ retInt ++
+            ", label %" ++ retZero
           
           emit $ retInt ++ ":"
           truncated <- freshReg
