@@ -1,3 +1,4 @@
+// Factorial function
 fn fact(n) =
     if n <= 1 {
         1

@@ -1,17 +1,38 @@
-{-
--- EPITECH PROJECT, 2025
--- AST
--- File description:
--- Shared AST definitions for the LISP interpreter
--}
-
 module AST
-    ( Expr(..)
+    ( Program
+    , TopLevel(..)
+    , Expr(..)
+    , Op(..)
     ) where
 
+import Data.Int (Int64)
+
+type Program = [TopLevel]
+
+data TopLevel
+    = TLFn String [String] Expr
+    | TLProc String [String] [TopLevel]
+    | TLLet String Expr
+    | TLExpr Expr
+    deriving (Eq, Show)
+
+data Op = Add | Sub | Mul | Div | Mod
+        | Eq | Neq | Lt | Lte | Gt | Gte
+        | And | Or | Pipe
+    deriving (Eq, Show)
+
 data Expr
-    = EInt Integer
+    = EInt Int64
     | EBool Bool
-    | ESymbol String
+    | EString String
+    | EVar String
+    | EIf Expr Expr Expr
+    | ELam [String] Expr
+    | ECall Expr [Expr]
+    | EUnary String Expr
+    | EBinary Op Expr Expr
     | EList [Expr]
-    deriving (Show, Eq)
+    | ETuple [Expr]
+    | EBlock [TopLevel] (Maybe Expr)
+    | ERet Expr
+    deriving (Eq, Show)

@@ -1,21 +1,23 @@
 name: glados
-version: 1.4.0
+version: 2.0.0
 dependencies:
   - base >= 4.7 && < 5
   - mtl
   - process
   - directory
+  - text
+  - megaparsec
+  - parser-combinators
+
 library:
   source-dirs: src
   exposed-modules:
     - AST
     - Parser
-    - Evaluator
-    - Parser.LISP
+    - Interpreter
   ghc-options:
     - -fhpc
-  dependencies:
-    - mtl
+
 executables:
   glados:
     main: Main.hs
@@ -26,30 +28,7 @@ tests:
     main: Test.hs
     source-dirs: test
     other-modules:
-      - AST.AST
-      - LispCases.AdvancedLambda.AdvancedLambda
-      - LispCases.ArithmeticOps.ArithmeticOps
-      - LispCases.BooleanOps.BooleanOps
-      - LispCases.Builtins.Builtins
-      - LispCases.Call.Call
-      - LispCases.Comparisons.Comparisons
-      - LispCases.DataStructures.DataStructures
-      - LispCases.DefineAndRecursion.DefineAndRecursion
-      - LispCases.EdgeCases.EdgeCases
-      - LispCases.Error.Error
-      - LispCases.Factorial.Factorial
-      - LispCases.Foo.Foo
-      - LispCases.Function.Function
-      - LispCases.If.If
-      - LispCases.Lambda.Lambda
-      - LispCases.ParseErrors.ParseErrors
-      - LispCases.RuntimeErrors.RuntimeErrors
-      - LispCases.SpecialCases.SpecialCases
-      - LispCases.Superior.Superior
-      - LispCases.SymbolHandling.SymbolHandling
-      - LispCases.UnboundVariables.UnboundVariables
-      - ParserCombinators.ParserCombinators
-      - TestHelper
+      - FluxTests
     ghc-options:
       - -threaded
       - -rtsopts
@@ -58,8 +37,8 @@ tests:
     dependencies:
       - glados
       - tasty
-      - tasty-hspec
-      - hspec
+      - tasty-hunit
       - process
       - filepath
       - directory
+      - random

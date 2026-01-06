@@ -1,117 +1,191 @@
-{-
--- EPITECH PROJECT, 2025
--- Parser
--- File description:
--- Parser combinator implementation
--}
-
+{-# LANGUAGE OverloadedStrings #-}
 module Parser
-    ( Parser(..)
-    , char
-    , string
-    , oneOf
-    , noneOf
-    , digit
-    , parseSpace
-    , many
-    , some
-    , sepBy
-    , sepBy1
-    , stripPrefix
-    , isPrefixOf
-    , between
-    , anyChar
-    , manyTill
-    , notFollowedBy
+    ( parseProgram
+    , desugarPipes
     ) where
 
-import Control.Applicative (Alternative(..), optional)
-import Data.Char (isDigit, isSpace)
+import qualified Data.Text as T
+import Data.Void
+import Data.Int (Int64)
+import Data.Functor (void)
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import Text.Megaparsec.Char.Lexer as L (charLiteral)
+import Data.Char (isAlphaNum)
+import qualified Text.Megaparsec.Char.Lexer as L
+import Control.Monad.Combinators.Expr (Operator(..), makeExprParser)
+import AST
 
-newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
+type Parser = Parsec Void T.Text
 
-instance Functor Parser where
-    fmap f (Parser p) = Parser $ \input -> do
-        (x, rest) <- p input
-        return (f x, rest)
+sc :: Parser ()
+sc = L.space space1 (L.skipLineComment "//") empty
 
-instance Applicative Parser where
-    pure x = Parser $ \input -> Just (x, input)
-    (Parser p1) <*> (Parser p2) = Parser $ \input -> do
-        (f, rest1) <- p1 input
-        (x, rest2) <- p2 rest1
-        return (f x, rest2)
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
 
-instance Alternative Parser where
-    empty = Parser $ const Nothing
-    (Parser p1) <|> (Parser p2) = Parser $ \input ->
-        p1 input <|> p2 input
+symbol :: T.Text -> Parser T.Text
+symbol = L.symbol sc
 
-instance Monad Parser where
-    return = pure
-    (Parser p) >>= f = Parser $ \input -> do
-        (x, rest) <- p input
-        runParser (f x) rest
+parens :: Parser a -> Parser a
+parens = between (symbol "(") (symbol ")")
 
-char :: Char -> Parser Char
-char c = Parser $ \input -> case input of
-    (x:xs) | x == c -> Just (c, xs)
-    _ -> Nothing
+identifier :: Parser String
+identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '_')
 
-string :: String -> Parser String
-string "" = pure ""
-string (c:cs) = (:) <$> char c <*> string cs
+integer :: Parser Int64
+integer = lexeme (L.signed sc (fromIntegral <$> L.decimal))
 
-oneOf :: String -> Parser Char
-oneOf str = Parser $ \input -> case input of
-    (x:xs) | x `elem` str -> Just (x, xs)
-    _ -> Nothing
+reserved :: String -> Parser ()
+reserved w = void (string (T.pack w) >> notFollowedBy alphaNumChar) >> sc
 
-noneOf :: String -> Parser Char
-noneOf str = Parser $ \input -> case input of
-    (x:xs) | not (x `elem` str) -> Just (x, xs)
-    _ -> Nothing
+pProgram :: Parser Program
+pProgram = sc *> many pTopLevel <* eof
 
-digit :: Parser Char
-digit = Parser $ \input -> case input of
-    (x:xs) | isDigit x -> Just (x, xs)
-    _ -> Nothing
+pTopLevel :: Parser TopLevel
+pTopLevel = choice [pFn, pLet, TLExpr <$> pExpr]
 
-parseSpace :: Parser String
-parseSpace = many (oneOf " \t\n\r")
+pFn :: Parser TopLevel
+pFn = do
+    reserved "fn"
+    name <- identifier
+    params <- parens (identifier `sepBy` symbol ",")
+    hasEquals <- optional (symbol "=")
+    case hasEquals of
+        Just _ -> do
+            body <- pBlock <|> pExpr
+            return $ TLFn name params body
+        Nothing -> do
+            _ <- symbol "{"
+            statements <- many pTopLevel
+            _ <- symbol "}"
+            return $ TLProc name params statements
 
-sepBy :: Parser a -> Parser sep -> Parser [a]
-sepBy p sep = (p `sepBy1` sep) <|> pure []
+pLet :: Parser TopLevel
+pLet = do
+    reserved "let"
+    name <- identifier
+    _ <- symbol "="
+    expr <- pExpr
+    return $ TLLet name expr
 
-sepBy1 :: Parser a -> Parser sep -> Parser [a]
-sepBy1 p sep = (:) <$> p <*> many (sep *> p)
+pBlock :: Parser Expr
+pBlock = do
+    _ <- symbol "{"
+    tops <- many (try (pFn <|> pLet))
+    mexpr <- optional pExpr
+    _ <- symbol "}"
+    return $ EBlock tops mexpr
 
-stripPrefix :: String -> String -> Maybe String
-stripPrefix [] ys = Just ys
-stripPrefix (x:xs) (y:ys)
-    | x == y = stripPrefix xs ys
-stripPrefix _ _ = Nothing
+pExpr :: Parser Expr
+pExpr = makeExprParser pTerm operatorTable
 
-isPrefixOf :: String -> String -> Bool
-isPrefixOf [] _ = True
-isPrefixOf _ [] = False
-isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
+pTerm :: Parser Expr
+pTerm = choice
+    [ EInt <$> integer
+    , EBool True <$ reserved "true"
+    , EBool False <$ reserved "false"
+    , pString
+    , try pCall
+    , pIf
+    , pList
+    , pRet
+    , try pTuple
+    , EVar <$> identifier
+    , parens pExpr
+    , pLambda
+    ]
 
-between :: Parser open -> Parser close -> Parser a -> Parser a
-between open close p = open *> p <* close
+pString :: Parser Expr
+pString = do
+    _ <- char '"'
+    s <- manyTill L.charLiteral (char '"')
+    sc
+    return $ EString s
 
-anyChar :: Parser Char
-anyChar = Parser $ \input -> case input of
-    (x:xs) -> Just (x, xs)
-    []     -> Nothing
+pIf :: Parser Expr
+pIf = do
+    reserved "if"
+    cond <- pExpr
+    thenBranch <- try (symbol "{" *> pExpr <* symbol "}") <|> pBlock
+    _ <- reserved "else"
+    elseBranch <- try (symbol "{" *> pExpr <* symbol "}") <|> pBlock
+    return $ EIf cond thenBranch elseBranch
 
-manyTill :: Parser a -> Parser end -> Parser [a]
-manyTill p end = go
+pList :: Parser Expr
+pList = do
+    _ <- symbol "["
+    elems <- pExpr `sepBy` symbol ","
+    _ <- symbol "]"
+    return $ EList elems
+
+pTuple :: Parser Expr
+pTuple = do
+    _ <- symbol "("
+    first <- pExpr
+    _ <- symbol ","
+    rest <- pExpr `sepBy` symbol ","
+    _ <- symbol ")"
+    return $ ETuple (first : rest)
+
+pRet :: Parser Expr
+pRet = do
+    reserved "RET"
+    expr <- pExpr
+    return $ ERet expr
+
+pLambda :: Parser Expr
+pLambda = do
+    params <- parens (identifier `sepBy` symbol ",")
+    _ <- symbol "=>"
+    body <- pExpr
+    return $ ELam params body
+
+pCall :: Parser Expr
+pCall = do
+    name <- try $ do
+        n <- takeWhile1P Nothing (\c -> isAlphaNum c || c == '_')
+        _ <- takeWhileP Nothing (\c -> c == ' ' || c == '\t')
+        lookAhead (char '(')
+        return n
+    sc
+    args <- parens (pExpr `sepBy` symbol ",")
+    return $ ECall (EVar (T.unpack name)) args
+
+operatorTable :: [[Operator Parser Expr]]
+operatorTable =
+  [ [ prefix "-" (EUnary "-") , prefix "!" (EUnary "!") ]
+  , [ binary "*" (EBinary Mul) , binary "/" (EBinary Div) , binary "%" (EBinary Mod) ]
+  , [ binary "+" (EBinary Add) , binary "-" (EBinary Sub) ]
+  , [ binary "==" (EBinary Eq) , binary "!=" (EBinary Neq) , binary "<=" (EBinary Lte)
+    , binary ">=" (EBinary Gte) , binary "<" (EBinary Lt) , binary ">" (EBinary Gt) ]
+  , [ binary "&&" (EBinary And) ]
+  , [ binary "||" (EBinary Or) ]
+  , [ binary "|>" (EBinary Pipe) ]
+  ]
   where
-    go = (end *> pure []) <|> ((:) <$> p <*> go)
+    binary  name f = InfixL  (f <$ symbol (T.pack name))
+    prefix  name f = Prefix  (f <$ symbol (T.pack name))
 
-notFollowedBy :: Parser a -> Parser ()
-notFollowedBy p = Parser $ \input ->
-    case runParser p input of
-        Just _  -> Nothing
-        Nothing -> Just ((), input)
+parseProgram :: String -> Either (ParseErrorBundle T.Text Void) Program
+parseProgram input = runParser pProgram "<input>" (T.pack input)
+
+desugarPipes :: Expr -> Expr
+desugarPipes e = case e of
+    EBinary Pipe a b ->
+        let a' = desugarPipes a
+            b' = desugarPipes b
+        in case (a', b') of
+            (ETuple elems, ECall f args) -> ECall f (elems ++ args)
+            (ETuple elems, _) -> ECall b' elems
+            (_, ECall f args) -> ECall f (a' : args)
+            (_, _) -> ECall b' [a']
+    EBinary op l r -> EBinary op (desugarPipes l) (desugarPipes r)
+    ECall f args -> ECall (desugarPipes f) (map desugarPipes args)
+    ELam ps body -> ELam ps (desugarPipes body)
+    EIf c t e2 -> EIf (desugarPipes c) (desugarPipes t) (desugarPipes e2)
+    EBlock tops me -> EBlock tops (fmap desugarPipes me)
+    EList xs -> EList (map desugarPipes xs)
+    ETuple xs -> ETuple (map desugarPipes xs)
+    ERet ex -> ERet (desugarPipes ex)
+    other -> other
