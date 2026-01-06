@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: run-lisp-tests
         name: Run Haskell Lisp-only Tests
-        entry: stack test --test-arguments="--only-lisp"
+        entry: stack test
         language: system
         stages: [pre-commit]
         pass_filenames: false
