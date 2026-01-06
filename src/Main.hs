@@ -47,7 +47,7 @@ runInterpreter file = do
             hPutStrLn stderr (errorBundlePretty err)
             exitWith (ExitFailure 84)
         Right prog -> do
-            r <- runProgram prog
+            r <- runProgramWithPath prog file
             case r of
                 Left err -> do
                     hPutStrLn stderr ("*** ERROR : " ++ err ++ if not (null err) && last err == '.' then "" else ".")

@@ -1,5 +1,6 @@
 module Interpreter
   ( runProgram
+  , runProgramWithPath
   , Value(..)
   , showValue
   ) where
@@ -8,6 +9,9 @@ import AST
 import qualified Parser as P
 import Data.Int (Int64)
 import Control.Monad (forM)
+import System.FilePath (takeDirectory, (</>))
+import System.Directory (doesFileExist)
+import qualified Data.Set as Set
 
 data Value
   = VInt Int64
@@ -188,31 +192,77 @@ applyValue (VClosure params body closEnv) args =
 applyValue (VPrim f) args = f args
 applyValue _ _ = pure (Left "type error")
 
+-- | Load a file with imports
+loadFileWithImports :: FilePath -> Set.Set FilePath -> IO (Either String Program)
+loadFileWithImports file loaded
+    | file `Set.member` loaded = return $ Right []
+    | otherwise = do
+        exists <- doesFileExist file
+        if not exists
+            then return $ Left $ "File not found: " ++ file
+            else do
+                input <- readFile file
+                case P.parseProgram input of
+                    Left err -> return $ Left $ show err
+                    Right prog -> do
+                        let newLoaded = Set.insert file loaded
+                        -- Process imports
+                        importedProgs <- forM [path | TLImport path _ <- prog] $ \path -> do
+                            let baseDir = takeDirectory file
+                            let importPath = baseDir </> path
+                            loadFileWithImports importPath newLoaded
+                        case sequence importedProgs of
+                            Left err -> return $ Left err
+                            Right importedProg -> return $ Right (concat importedProg ++ prog)
+
 runProgram :: Program -> IO (Either String (Maybe Value))
-runProgram prog = do
+runProgram prog = runProgramWithPath prog ""
+
+-- | Run program with a base directory for resolving imports
+runProgramWithPath :: Program -> FilePath -> IO (Either String (Maybe Value))
+runProgramWithPath prog filePath = do
   env0 <- initialEnv
-  let loop env [] lastVal = pure (Right lastVal)
-      loop env (t:ts) _ = case t of
-        TLImport _ _ -> loop env ts Nothing  -- Imports are handled at compile time
-        TLFn name params body -> do
-          let body' = P.desugarPipes body
-              recEnv = (name, closure') : env
-              closure' = VClosure params body' recEnv
-          loop recEnv ts Nothing
-        TLProc name params statements -> do
-          let recEnv = (name, procClosure') : env
-              procClosure' = VClosure params (EBlock statements Nothing) recEnv
-          loop recEnv ts Nothing
-        TLLet name expr -> do
-          let expr' = P.desugarPipes expr
-          rv <- evalExpr env expr'
-          case rv of
-            Left err -> pure (Left err)
-            Right val -> loop ((name, val) : env) ts (Just val)
-        TLExpr ex -> do
-          let ex' = P.desugarPipes ex
-          rv <- evalExpr env ex'
-          case rv of
-            Left err -> pure (Left err)
-            Right val -> loop env ts (Just val)
-  loop env0 prog Nothing
+  -- Load all imports first
+  loadResult <- loadAllImports prog (takeDirectory filePath) Set.empty
+  fullProg <- case loadResult of
+    Left err -> return $ Left err
+    Right p -> return $ Right p
+  case fullProg of
+    Left err -> return $ Left err
+    Right prg -> do
+      let loop env [] lastVal = pure (Right lastVal)
+          loop env (t:ts) _ = case t of
+            TLImport _ _ -> loop env ts Nothing  -- Already handled
+            TLFn name params body -> do
+              let body' = P.desugarPipes body
+                  recEnv = (name, closure') : env
+                  closure' = VClosure params body' recEnv
+              loop recEnv ts Nothing
+            TLProc name params statements -> do
+              let recEnv = (name, procClosure') : env
+                  procClosure' = VClosure params (EBlock statements Nothing) recEnv
+              loop recEnv ts Nothing
+            TLLet name expr -> do
+              let expr' = P.desugarPipes expr
+              rv <- evalExpr env expr'
+              case rv of
+                Left err -> pure (Left err)
+                Right val -> loop ((name, val) : env) ts (Just val)
+            TLExpr ex -> do
+              let ex' = P.desugarPipes ex
+              rv <- evalExpr env ex'
+              case rv of
+                Left err -> pure (Left err)
+                Right val -> loop env ts (Just val)
+      loop env0 prg Nothing
+
+-- | Recursively load all imports
+loadAllImports :: Program -> FilePath -> Set.Set FilePath -> IO (Either String Program)
+loadAllImports prog baseDir loaded = do
+  let imports = [path | TLImport path _ <- prog]
+  importedProgs <- forM imports $ \path -> do
+    let importPath = if null baseDir then path else baseDir </> path
+    loadFileWithImports importPath loaded
+  case sequence importedProgs of
+    Left err -> return $ Left err
+    Right importedProg -> return $ Right (concat importedProg ++ prog)
