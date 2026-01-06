@@ -128,6 +128,7 @@ evalExpr env (EBlock tops me) = do
     applyTop ioenv tl = do
       e' <- ioenv
       case tl of
+        TLImport _ _ -> pure e'  -- Imports are handled at compile time
         TLFn name params body -> do
           let body' = P.desugarPipes body
               recEnv = (name, closure') : e'
@@ -192,6 +193,7 @@ runProgram prog = do
   env0 <- initialEnv
   let loop env [] lastVal = pure (Right lastVal)
       loop env (t:ts) _ = case t of
+        TLImport _ _ -> loop env ts Nothing  -- Imports are handled at compile time
         TLFn name params body -> do
           let body' = P.desugarPipes body
               recEnv = (name, closure') : env

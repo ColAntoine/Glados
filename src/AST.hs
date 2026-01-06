@@ -6,11 +6,13 @@ module AST
     ) where
 
 import Data.Int (Int64)
+import System.FilePath (FilePath)
 
 type Program = [TopLevel]
 
 data TopLevel
-    = TLFn String [String] Expr
+    = TLImport FilePath [String]  -- import { func1, func2 } from "file.flux"
+    | TLFn String [String] Expr
     | TLProc String [String] [TopLevel]
     | TLLet String Expr
     | TLExpr Expr

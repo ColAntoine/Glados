@@ -581,6 +581,7 @@ compileClosureCall closureVal args = do
 
 -- | Compile a top-level form
 compileTopLevel :: TopLevel -> Compiler ()
+compileTopLevel (TLImport _ _) = return ()  -- Imports are handled at the top level
 compileTopLevel (TLFn name params body) = do
   -- Add to known functions
   modify $ \s -> s { csFuncNames = name : csFuncNames s }
@@ -714,6 +715,7 @@ compileProgram prog = evalState action initialState
         mainCode
     
     compileMain mLast tl = case tl of
+      TLImport {} -> return mLast  -- Already handled
       TLFn {} -> return mLast  -- Already compiled
       TLProc {} -> return mLast  -- Already compiled
       TLLet name expr -> do

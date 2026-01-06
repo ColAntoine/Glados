@@ -17,7 +17,6 @@ import Control.Monad.Combinators.Expr (Operator(..), makeExprParser)
 import AST
 
 type Parser = Parsec Void T.Text
-
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "//") empty
 
@@ -43,7 +42,20 @@ pProgram :: Parser Program
 pProgram = sc *> many pTopLevel <* eof
 
 pTopLevel :: Parser TopLevel
-pTopLevel = choice [pFn, pLet, TLExpr <$> pExpr]
+pTopLevel = choice [pImport, pFn, pLet, TLExpr <$> pExpr]
+
+pImport :: Parser TopLevel
+pImport = do
+    reserved "import"
+    _ <- symbol "{"
+    funcs <- identifier `sepBy` (symbol ",")
+    _ <- symbol "}"
+    reserved "from"
+    filePath <- stringLiteral
+    return $ TLImport filePath funcs
+
+stringLiteral :: Parser String
+stringLiteral = lexeme $ between (char '"') (char '"') (many (satisfy (/= '"')))
 
 pFn :: Parser TopLevel
 pFn = do
