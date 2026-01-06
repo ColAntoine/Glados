@@ -1,3 +1,10 @@
+{-
+-- EPITECH PROJECT, 2026
+-- Glados
+-- File description:
+-- Abstract syntax tree definitions for Flux language
+-}
+
 module AST
     ( Program
     , TopLevel(..)

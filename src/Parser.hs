@@ -1,3 +1,10 @@
+{-
+-- EPITECH PROJECT, 2026
+-- Glados
+-- File description:
+-- Haskell parser for Flux language
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 module Parser
     ( parseProgram

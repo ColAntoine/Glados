@@ -1,3 +1,10 @@
+{-
+-- EPITECH PROJECT, 2026
+-- Glados
+-- File description:
+-- LLVM compiler for Flux language
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 module Compiler
   ( compileProgram
@@ -80,30 +87,31 @@ withLocals newLocals action = do
 
 -- | Generate LLVM IR prelude with runtime support
 genPrelude :: Compiler ()
-genPrelude = do
+genPrelude = sequence_ [
   -- Declare external functions
-  emitFunc "; Runtime declarations"
-  emitFunc "declare i32 @printf(i8*, ...)"
-  emitFunc "declare i8* @malloc(i64)"
-  emitFunc "declare void @free(i8*)"
-  emitFunc "declare i8* @strcpy(i8*, i8*)"
-  emitFunc "declare i64 @strlen(i8*)"
-  emitFunc ""
+  emitFunc "; Runtime declarations",
+  emitFunc "declare i32 @printf(i8*, ...)",
+  emitFunc "declare i8* @malloc(i64)",
+  emitFunc "declare void @free(i8*)",
+  emitFunc "declare i8* @strcpy(i8*, i8*)",
+  emitFunc "declare i64 @strlen(i8*)",
+  emitFunc "",
   
   -- Value type (boxed): { tag: i64, data: i64 }
-  emitFunc "; Boxed value type: { i64 tag, i64 data }"
-  emitFunc "%Value = type { i64, i64 }"
-  emitFunc ""
+  emitFunc "; Boxed value type: { i64 tag, i64 data }",
+  emitFunc "%Value = type { i64, i64 }",
+  emitFunc "",
   
   -- Closure type: { funcptr, env_size, env... }
-  emitFunc "; Closure type: { i8* funcptr, i64 env_size, %Value* env }"
-  emitFunc "%Closure = type { i8*, i64, %Value* }"
-  emitFunc ""
+  emitFunc "; Closure type: { i8* funcptr, i64 env_size, %Value* env }",
+  emitFunc "%Closure = type { i8*, i64, %Value* }",
+  emitFunc "",
   
   -- List/Tuple type: { size, elements... }
-  emitFunc "; Array type for lists/tuples: { i64 size, %Value* elements }"
-  emitFunc "%Array = type { i64, %Value* }"
+  emitFunc "; Array type for lists/tuples: { i64 size, %Value* elements }",
+  emitFunc "%Array = type { i64, %Value* }",
   emitFunc ""
+  ]
 
 -- | Generate string constants
 genStrings :: [(Int, String)] -> [String]
@@ -439,7 +447,7 @@ compileExpr (ELam params body) = do
   modify $ \s -> s { csCode = [], csLocals = M.empty }
   
   -- Set up parameter locals
-  forM_ params $ \p -> do
+  forM_ params $ \p ->
     setLocal p ("%" ++ p ++ ".ptr")
   
   bodyResult <- compileExpr body
@@ -544,11 +552,8 @@ compileExpr (ETuple elems) = do
   emit $ "  " ++ result ++ " = insertvalue %Value { i64 4, i64 undef }, i64 " ++ ptrInt ++ ", 1"
   return result
 
-compileExpr (EBlock stmts mExpr) = do
-  -- Compile statements
-  forM_ stmts compileTopLevel
-  -- Return final expression or unit
-  case mExpr of
+compileExpr (EBlock stmts mExpr) =
+  forM_ stmts compileTopLevel >> case mExpr of
     Just e -> compileExpr e
     Nothing -> boxInt "0"
 
@@ -718,9 +723,8 @@ compileProgram prog = evalState action initialState
       TLImport {} -> return mLast  -- Already handled
       TLFn {} -> return mLast  -- Already compiled
       TLProc {} -> return mLast  -- Already compiled
-      TLLet name expr -> do
-        compileTopLevel (TLLet name expr)
-        return mLast
+      TLLet name expr ->
+        compileTopLevel (TLLet name expr) >> return mLast
       TLExpr expr -> do
         let expr' = P.desugarPipes expr
         result <- compileExpr expr'
@@ -728,6 +732,6 @@ compileProgram prog = evalState action initialState
 
 -- | Compile and write to file
 compileProgramToFile :: Program -> FilePath -> IO ()
-compileProgramToFile prog path = do
+compileProgramToFile prog path =
   let ir = compileProgram prog
-  writeFile path ir
+  in writeFile path ir

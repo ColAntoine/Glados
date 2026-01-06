@@ -1,3 +1,10 @@
+{-
+-- EPITECH PROJECT, 2026
+-- Glados
+-- File description:
+-- Main entry point for Flux language interpreter and compiler
+-}
+
 module Main where
 
 import System.Environment (getArgs)
@@ -21,9 +28,9 @@ main = do
     case parseArgs args of
         Just (Interpret file) -> runInterpreter file
         Just (Compile files output) -> runCompilerMulti files output
-        Nothing -> do
-            hPutStrLn stderr "Usage: glados -i <file>                  (interpret)"
-            hPutStrLn stderr "       glados -c <files...> [-o out]  (compile)"
+        Nothing ->
+            hPutStrLn stderr "Usage: glados -i <file>                  (interpret)" >>
+            hPutStrLn stderr "       glados -c <files...> [-o out]  (compile)" >>
             exitWith (ExitFailure 84)
 
 data Mode = Interpret FilePath | Compile [FilePath] FilePath
@@ -43,17 +50,18 @@ runInterpreter :: FilePath -> IO ()
 runInterpreter file = do
     input <- readFile file
     case P.parseProgram input of
-        Left err -> do
-            hPutStrLn stderr (errorBundlePretty err)
+        Left err ->
+            hPutStrLn stderr (errorBundlePretty err) >>
             exitWith (ExitFailure 84)
         Right prog -> do
             r <- runProgramWithPath prog file
             case r of
-                Left err -> do
-                    hPutStrLn stderr ("*** ERROR : " ++ err ++ if not (null err) && last err == '.' then "" else ".")
+                Left err ->
+                    hPutStrLn stderr ("*** ERROR : " ++ err ++ if not (null err) && last err == '.' then "" else ".") >>
                     exitWith (ExitFailure 84)
                 Right mval -> case mval of
-                    Just (VInt n) -> exitWith (if n == 0 then ExitSuccess else ExitFailure (fromIntegral n))
+                    Just (VInt 0) -> exitWith ExitSuccess
+                    Just (VInt n) -> exitWith (ExitFailure (fromIntegral n))
                     _ -> exitWith ExitSuccess
 
 -- | Load and parse a single file
@@ -86,7 +94,7 @@ loadWithImports file loaded
                     Left err -> return $ Left err
                     Right imported -> return $ Right (imported ++ prog)
   where
-    loadImport acc (path, _funcs) = do
+    loadImport acc (path, _funcs) =
         case acc of
             Left err -> return $ Left err
             Right prog -> do
@@ -107,12 +115,12 @@ loadMultipleFiles files = do
 
 -- | Check that all called functions are defined
 checkFunctionDefinitions :: Program -> Either String ()
-checkFunctionDefinitions prog = do
+checkFunctionDefinitions prog =
     let definedFuncs = Set.fromList ([name | TLFn name _ _ <- prog] ++
                                      [name | TLProc name _ _ <- prog])
-    let calledFuncs = findCalledFuncs prog
-    let undefined = Set.filter (not . isBuiltin) (calledFuncs Set.\\ definedFuncs)
-    if Set.null undefined
+        calledFuncs = findCalledFuncs prog
+        undefined = Set.filter (not . isBuiltin) (calledFuncs Set.\\ definedFuncs)
+    in if Set.null undefined
         then Right ()
         else Left $ "Undefined functions: " ++ show (Set.toList undefined)
 
@@ -151,24 +159,25 @@ runCompilerMulti :: [FilePath] -> FilePath -> IO ()
 runCompilerMulti files output = do
     result <- loadMultipleFiles files
     case result of
-        Left err -> do
-            hPutStrLn stderr err
+        Left err ->
+            hPutStrLn stderr err >>
             exitWith (ExitFailure 84)
-        Right prog -> do
+        Right prog ->
             -- Check that all called functions are defined
             case checkFunctionDefinitions prog of
-                Left err -> do
-                    hPutStrLn stderr ("*** ERROR : " ++ err)
+                Left err ->
+                    hPutStrLn stderr ("*** ERROR : " ++ err) >>
                     exitWith (ExitFailure 84)
-                Right () -> do
+                Right () ->
                     let llFile = output ++ ".ll"
-                    compileProgramToFile prog llFile
-                    -- Call clang to compile the LLVM IR
-                    (exitCode, _, clangErr) <- readProcessWithExitCode "clang" [llFile, "-o", output] ""
-                    case exitCode of
-                        ExitSuccess -> do
-                            removeFile llFile
-                            return ()
-                        ExitFailure _ -> do
-                            hPutStrLn stderr $ "Clang compilation failed:\n" ++ clangErr
-                            exitWith (ExitFailure 84)
+                    in compileProgramToFile prog llFile >>
+                       do
+                           -- Call clang to compile the LLVM IR
+                           (exitCode, _, clangErr) <- readProcessWithExitCode "clang" [llFile, "-o", output] ""
+                           case exitCode of
+                               ExitSuccess ->
+                                   removeFile llFile >>
+                                   return ()
+                               ExitFailure _ ->
+                                   (hPutStrLn stderr $ "Clang compilation failed:\n" ++ clangErr) >>
+                                   exitWith (ExitFailure 84)

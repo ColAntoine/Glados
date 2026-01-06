@@ -1,3 +1,10 @@
+{-
+-- EPITECH PROJECT, 2026
+-- Glados
+-- File description:
+-- Interpreter for Flux language AST
+-}
+
 module Interpreter
   ( runProgram
   , runProgramWithPath
@@ -45,18 +52,16 @@ initialEnv = pure
   ]
 
 primPrint :: [Value] -> IO (Either String Value)
-primPrint [v] = do
-  putStrLn (showValue v)
-  pure (Right v)
+primPrint [v] = putStrLn (showValue v) >> pure (Right v)
 primPrint _ = pure (Left "arity mismatch")
 
 primMap :: [Value] -> IO (Either String Value)
 primMap [VClosure params body closEnv, VList vals] = primMap [VList vals, VClosure params body closEnv]
 primMap [VList vals, VClosure params body closEnv] = case params of
   [p] -> do
-    results <- forM vals $ \v -> do
+    results <- forM vals $ \v ->
       let callEnv = (p, v) : closEnv
-      evalExpr callEnv body
+      in evalExpr callEnv body
     case sequence results of
       Left err -> pure (Left err)
       Right vs -> pure (Right (VList vs))
@@ -133,15 +138,15 @@ evalExpr env (EBlock tops me) = do
       e' <- ioenv
       case tl of
         TLImport _ _ -> pure e'  -- Imports are handled at compile time
-        TLFn name params body -> do
+        TLFn name params body ->
           let body' = P.desugarPipes body
               recEnv = (name, closure') : e'
               closure' = VClosure params body' recEnv
-          pure ((name, closure') : e')
-        TLProc name params statements -> do
+          in pure ((name, closure') : e')
+        TLProc name params statements ->
           let recEnv = (name, procClosure') : e'
               procClosure' = VClosure params (EBlock statements Nothing) recEnv
-          pure ((name, procClosure') : e')
+          in pure ((name, procClosure') : e')
         TLLet name expr -> do
           let expr' = P.desugarPipes expr
           rv <- evalExpr e' expr'
@@ -185,10 +190,10 @@ evalBinary _ _ _ = pure $ Left "type error"
 
 applyValue :: Value -> [Value] -> IO (Either String Value)
 applyValue (VClosure params body closEnv) args =
-  if length params /= length args then pure (Left "arity mismatch") else do
+  if length params /= length args then pure (Left "arity mismatch") else
     let frame = zip params args
         callEnv = frame ++ closEnv
-    evalExpr callEnv body
+    in evalExpr callEnv body
 applyValue (VPrim f) args = f args
 applyValue _ _ = pure (Left "type error")
 
@@ -207,10 +212,10 @@ loadFileWithImports file loaded
                     Right prog -> do
                         let newLoaded = Set.insert file loaded
                         -- Process imports
-                        importedProgs <- forM [path | TLImport path _ <- prog] $ \path -> do
+                        importedProgs <- forM [path | TLImport path _ <- prog] $ \path ->
                             let baseDir = takeDirectory file
-                            let importPath = baseDir </> path
-                            loadFileWithImports importPath newLoaded
+                                importPath = baseDir </> path
+                            in loadFileWithImports importPath newLoaded
                         case sequence importedProgs of
                             Left err -> return $ Left err
                             Right importedProg -> return $ Right (concat importedProg ++ prog)
@@ -229,19 +234,19 @@ runProgramWithPath prog filePath = do
     Right p -> return $ Right p
   case fullProg of
     Left err -> return $ Left err
-    Right prg -> do
+    Right prg ->
       let loop env [] lastVal = pure (Right lastVal)
           loop env (t:ts) _ = case t of
             TLImport _ _ -> loop env ts Nothing  -- Already handled
-            TLFn name params body -> do
+            TLFn name params body ->
               let body' = P.desugarPipes body
                   recEnv = (name, closure') : env
                   closure' = VClosure params body' recEnv
-              loop recEnv ts Nothing
-            TLProc name params statements -> do
+              in loop recEnv ts Nothing
+            TLProc name params statements ->
               let recEnv = (name, procClosure') : env
                   procClosure' = VClosure params (EBlock statements Nothing) recEnv
-              loop recEnv ts Nothing
+              in loop recEnv ts Nothing
             TLLet name expr -> do
               let expr' = P.desugarPipes expr
               rv <- evalExpr env expr'
@@ -254,15 +259,15 @@ runProgramWithPath prog filePath = do
               case rv of
                 Left err -> pure (Left err)
                 Right val -> loop env ts (Just val)
-      loop env0 prg Nothing
+      in loop env0 prg Nothing
 
 -- | Recursively load all imports
 loadAllImports :: Program -> FilePath -> Set.Set FilePath -> IO (Either String Program)
 loadAllImports prog baseDir loaded = do
   let imports = [path | TLImport path _ <- prog]
-  importedProgs <- forM imports $ \path -> do
+  importedProgs <- forM imports $ \path ->
     let importPath = if null baseDir then path else baseDir </> path
-    loadFileWithImports importPath loaded
+    in loadFileWithImports importPath loaded
   case sequence importedProgs of
     Left err -> return $ Left err
     Right importedProg -> return $ Right (concat importedProg ++ prog)
