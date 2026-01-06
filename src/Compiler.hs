@@ -14,11 +14,41 @@ module Compiler
 import AST
 import qualified Parser as P
 import Data.Int (Int64)
-import Data.List (intercalate)
+import Data.List (intercalate, nub, (\\))
 import Control.Monad.State
 import Control.Monad (forM, forM_, foldM)
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Maybe (fromMaybe)
+
+-- | Find free variables in an expression (variables used but not bound locally)
+freeVars :: Expr -> S.Set String
+freeVars (EInt _) = S.empty
+freeVars (EBool _) = S.empty
+freeVars (EString _) = S.empty
+freeVars (EVar name) = S.singleton name
+freeVars (EUnary _ e) = freeVars e
+freeVars (EBinary _ a b) = S.union (freeVars a) (freeVars b)
+freeVars (EIf c t e) = S.unions [freeVars c, freeVars t, freeVars e]
+freeVars (ECall f args) = S.unions (freeVars f : map freeVars args)
+freeVars (ELam params body) = freeVars body S.\\ S.fromList params
+freeVars (EList elems) = S.unions (map freeVars elems)
+freeVars (ETuple elems) = S.unions (map freeVars elems)
+freeVars (EBlock stmts mExpr) = 
+  let (bound, free) = foldl collectStmt (S.empty, S.empty) stmts
+      exprFree = maybe S.empty freeVars mExpr
+  in S.union free (exprFree S.\\ bound)
+  where
+    collectStmt (bound, free) tl = case tl of
+      TLLet name expr -> 
+        let exprFree = freeVars expr S.\\ bound
+        in (S.insert name bound, S.union free exprFree)
+      TLFn name _ _ -> (S.insert name bound, free)
+      TLProc name _ _ -> (S.insert name bound, free)
+      TLExpr expr -> (bound, S.union free (freeVars expr S.\\ bound))
+      TLImport _ _ -> (bound, free)
+freeVars (ERet e) = freeVars e
+freeVars (ESeq exprs) = S.unions (map freeVars exprs)
 
 -- | Value tags for boxed runtime values
 -- Tag 0 = Int64
@@ -451,45 +481,142 @@ compileExpr (ECall funcExpr args) = do
   compileClosureCall closureVal args
 
 compileExpr (ELam params body) = do
-  -- Create a closure
-  -- For simplicity, we'll create named functions and capture environment
+  -- Find free variables that need to be captured
+  funcs <- gets csFuncNames
+  currentLocals <- gets csLocals
+  let bodyFree = freeVars body
+      -- Remove parameters (they'll be passed as arguments)
+      -- Remove known top-level functions (they're global)
+      -- Only capture variables that are in current scope
+      capturedNames = S.toList $ bodyFree S.\\ S.fromList params 
+                                          S.\\ S.fromList funcs
+                                          S.\\ S.fromList ["print", "map"]
+      -- Filter to only variables that exist in current scope
+      capturedVars = filter (`M.member` currentLocals) capturedNames
+      numCaptured = length capturedVars
+  
   closureName <- freshLabel "lambda"
   
-  -- Generate the lambda function
-  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
-  emitFunc $ "define %Value @" ++ closureName ++ "(" ++ paramList ++ ") {"
-  emitFunc "entry:"
-  
-  -- Save current state and compile body in new context
+  -- Save entire current state
   oldCode <- gets csCode
   oldLocals <- gets csLocals
-  modify $ \s -> s { csCode = [], csLocals = M.empty }
+  oldFunctions <- gets csFunctions
+  
+  -- Start fresh for the lambda function
+  modify $ \s -> s { csCode = [], csLocals = M.empty, csFunctions = [] }
+  
+  -- Set up captured variables from environment (if any)
+  forM_ (zip [0..] capturedVars) $ \(i, name) -> do
+    elemPtr <- freshReg
+    emit $ "  " ++ elemPtr ++ " = getelementptr %Value, %Value* %env.ptr, i64 " ++ show i
+    setLocal name elemPtr
   
   -- Set up parameter locals
   forM_ params $ \p ->
     setLocal p ("%" ++ p ++ ".ptr")
   
+  -- Compile the body
   bodyResult <- compileExpr body
   emit $ "  ret %Value " ++ bodyResult
   
-  bodyCode <- gets csCode
-  mapM_ emitFunc bodyCode
-  emitFunc "}"
-  emitFunc ""
+  -- Get the lambda's body code and any nested functions it created
+  lambdaBodyCode <- gets csCode
+  lambdaNestedFuncs <- gets csFunctions
   
-  -- Restore state
-  modify $ \s -> s { csCode = oldCode, csLocals = oldLocals }
+  -- Build the complete lambda function - ALWAYS include env.ptr parameter for uniform calling convention
+  let paramList = intercalate ", " (["%Value* %env.ptr"] ++ ["%Value* %" ++ p ++ ".ptr" | p <- params])
+      lambdaFunc = ["define %Value @" ++ closureName ++ "(" ++ paramList ++ ") {",
+                    "entry:"] ++ lambdaBodyCode ++ ["}",""]
   
-  -- Return a closure value (simplified: just function pointer as i64)
-  funcPtr <- freshReg
-  result <- freshReg
-  emit $ "  " ++ funcPtr ++ " = ptrtoint %Value (" ++
-         intercalate ", " (replicate (length params) "%Value*") ++
-         ")* @" ++ closureName ++ " to i64"
-  emit $ "  " ++ result ++
-    " = insertvalue %Value { i64 5, i64 undef }, i64 " ++
-    funcPtr ++ ", 1"
-  return result
+  -- Restore state and add the lambda function (and any nested ones) to the functions list
+  modify $ \s -> s { csCode = oldCode, 
+                     csLocals = oldLocals, 
+                     csFunctions = oldFunctions ++ lambdaNestedFuncs ++ lambdaFunc }
+  
+  -- Now create the closure structure at runtime
+  if numCaptured > 0 then do
+    -- Allocate closure struct: { funcptr (i8*), env_size (i64), env (%Value*) }
+    closurePtr <- freshReg
+    emit $ "  " ++ closurePtr ++ " = call i8* @malloc(i64 24)"  -- 8 + 8 + 8 bytes
+    closureTyped <- freshReg
+    emit $ "  " ++ closureTyped ++ " = bitcast i8* " ++ closurePtr ++ " to %Closure*"
+    
+    -- Store function pointer
+    funcPtrField <- freshReg
+    emit $ "  " ++ funcPtrField ++ " = getelementptr %Closure, %Closure* " ++ closureTyped ++ ", i32 0, i32 0"
+    funcPtrRaw <- freshReg
+    -- Function type: always has env.ptr as first param (uniform calling convention)
+    let funcType = "%Value (%Value*, " ++ intercalate ", " (replicate (length params) "%Value*") ++ ")*"
+    emit $ "  " ++ funcPtrRaw ++ " = bitcast " ++ funcType ++ " @" ++ closureName ++ " to i8*"
+    emit $ "  store i8* " ++ funcPtrRaw ++ ", i8** " ++ funcPtrField
+    
+    -- Store env size
+    envSizeField <- freshReg
+    emit $ "  " ++ envSizeField ++ " = getelementptr %Closure, %Closure* " ++ closureTyped ++ ", i32 0, i32 1"
+    emit $ "  store i64 " ++ show numCaptured ++ ", i64* " ++ envSizeField
+    
+    -- Allocate and populate environment array
+    envPtr <- freshReg
+    emit $ "  " ++ envPtr ++ " = call i8* @malloc(i64 " ++ show (numCaptured * 16) ++ ")"
+    envTyped <- freshReg
+    emit $ "  " ++ envTyped ++ " = bitcast i8* " ++ envPtr ++ " to %Value*"
+    
+    -- Store environment pointer in closure
+    envPtrField <- freshReg
+    emit $ "  " ++ envPtrField ++ " = getelementptr %Closure, %Closure* " ++ closureTyped ++ ", i32 0, i32 2"
+    emit $ "  store %Value* " ++ envTyped ++ ", %Value** " ++ envPtrField
+    
+    -- Copy captured values into environment
+    forM_ (zip [0..] capturedVars) $ \(i, name) -> do
+      mReg <- getLocal name
+      case mReg of
+        Just reg -> do
+          val <- freshReg
+          emit $ "  " ++ val ++ " = load %Value, %Value* " ++ reg
+          elemPtr <- freshReg
+          emit $ "  " ++ elemPtr ++ " = getelementptr %Value, %Value* " ++ envTyped ++ ", i64 " ++ show i
+          emit $ "  store %Value " ++ val ++ ", %Value* " ++ elemPtr
+        Nothing -> error $ "Cannot capture undefined variable: " ++ name
+    
+    -- Box closure pointer (tag 5)
+    ptrInt <- freshReg
+    result <- freshReg
+    emit $ "  " ++ ptrInt ++ " = ptrtoint i8* " ++ closurePtr ++ " to i64"
+    emit $ "  " ++ result ++ " = insertvalue %Value { i64 5, i64 undef }, i64 " ++ ptrInt ++ ", 1"
+    return result
+  else do
+    -- No captures - just store function pointer directly (simpler case)
+    -- But we still need a closure struct for uniform handling
+    closurePtr <- freshReg
+    emit $ "  " ++ closurePtr ++ " = call i8* @malloc(i64 24)"
+    closureTyped <- freshReg
+    emit $ "  " ++ closureTyped ++ " = bitcast i8* " ++ closurePtr ++ " to %Closure*"
+    
+    -- Store function pointer
+    funcPtrField <- freshReg
+    emit $ "  " ++ funcPtrField ++ " = getelementptr %Closure, %Closure* " ++ closureTyped ++ ", i32 0, i32 0"
+    funcPtrRaw <- freshReg
+    -- Function type: always has env.ptr as first param (uniform calling convention)
+    let funcType = "%Value (%Value*, " ++ intercalate ", " (replicate (length params) "%Value*") ++ ")*"
+    emit $ "  " ++ funcPtrRaw ++ " = bitcast " ++ funcType ++ " @" ++ closureName ++ " to i8*"
+    emit $ "  store i8* " ++ funcPtrRaw ++ ", i8** " ++ funcPtrField
+    
+    -- Store env size = 0
+    envSizeField <- freshReg
+    emit $ "  " ++ envSizeField ++ " = getelementptr %Closure, %Closure* " ++ closureTyped ++ ", i32 0, i32 1"
+    emit $ "  store i64 0, i64* " ++ envSizeField
+    
+    -- Store null env pointer
+    envPtrField <- freshReg
+    emit $ "  " ++ envPtrField ++ " = getelementptr %Closure, %Closure* " ++ closureTyped ++ ", i32 0, i32 2"
+    emit $ "  store %Value* null, %Value** " ++ envPtrField
+    
+    -- Box closure pointer
+    ptrInt <- freshReg
+    result <- freshReg
+    emit $ "  " ++ ptrInt ++ " = ptrtoint i8* " ++ closurePtr ++ " to i64"
+    emit $ "  " ++ result ++ " = insertvalue %Value { i64 5, i64 undef }, i64 " ++ ptrInt ++ ", 1"
+    return result
 
 compileExpr (EList elems) = do
   -- Allocate array structure
@@ -605,11 +732,24 @@ compileExpr (ESeq exprs) = do
 
 compileClosureCall :: String -> [Expr] -> Compiler String
 compileClosureCall closureVal args = do
-  -- For now, simplified: assume direct function call
-  -- In a full implementation, we'd extract the function pointer from closure
-  funcPtr <- unboxValue closureVal
+  -- Extract closure pointer from boxed value
+  closurePtrInt <- unboxValue closureVal
+  closurePtr <- freshReg
+  emit $ "  " ++ closurePtr ++ " = inttoptr i64 " ++ closurePtrInt ++ " to %Closure*"
   
-  -- Compile arguments and allocate space for them
+  -- Load function pointer from closure
+  funcPtrField <- freshReg
+  emit $ "  " ++ funcPtrField ++ " = getelementptr %Closure, %Closure* " ++ closurePtr ++ ", i32 0, i32 0"
+  funcPtrRaw <- freshReg
+  emit $ "  " ++ funcPtrRaw ++ " = load i8*, i8** " ++ funcPtrField
+  
+  -- Load environment pointer (may be null if no captures)
+  envPtrField <- freshReg
+  emit $ "  " ++ envPtrField ++ " = getelementptr %Closure, %Closure* " ++ closurePtr ++ ", i32 0, i32 2"
+  envPtr <- freshReg
+  emit $ "  " ++ envPtr ++ " = load %Value*, %Value** " ++ envPtrField
+  
+  -- Compile arguments first (before any branching)
   argRegs <- forM args $ \arg -> do
     val <- compileExpr arg
     ptr <- freshReg
@@ -617,17 +757,16 @@ compileClosureCall closureVal args = do
     emit $ "  store %Value " ++ val ++ ", %Value* " ++ ptr
     return ptr
   
-  -- Cast function pointer and call
+  -- All closures now have uniform calling convention: (env*, args...)
+  -- Even if env is null, the function just ignores it
   let nArgs = length args
   funcTyped <- freshReg
-  let argTypes = intercalate ", " (replicate nArgs "%Value*")
-  emit $ "  " ++ funcTyped ++ " = inttoptr i64 " ++ funcPtr ++
-    " to %Value (" ++ argTypes ++ ")*"
+  let argTypes = intercalate ", " (replicate (nArgs + 1) "%Value*")
+  emit $ "  " ++ funcTyped ++ " = bitcast i8* " ++ funcPtrRaw ++ " to %Value (" ++ argTypes ++ ")*"
   
   result <- freshReg
-  let argList = intercalate ", " ["%Value* " ++ r | r <- argRegs]
-  emit $ "  " ++ result ++ " = call %Value " ++ funcTyped ++
-    "(" ++ argList ++ ")"
+  let argList = intercalate ", " (["%Value* " ++ envPtr] ++ ["%Value* " ++ r | r <- argRegs])
+  emit $ "  " ++ result ++ " = call %Value " ++ funcTyped ++ "(" ++ argList ++ ")"
   return result
 
 -- | Compile a top-level form
@@ -637,15 +776,11 @@ compileTopLevel (TLFn name params body) = do
   -- Add to known functions
   modify $ \s -> s { csFuncNames = name : csFuncNames s }
   
-  -- Generate function
-  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
-  emitFunc $ "define %Value @" ++ name ++ "(" ++ paramList ++ ") {"
-  emitFunc "entry:"
-  
   -- Save state
   oldCode <- gets csCode
   oldLocals <- gets csLocals
-  modify $ \s -> s { csCode = [], csLocals = M.empty }
+  oldFunctions <- gets csFunctions
+  modify $ \s -> s { csCode = [], csLocals = M.empty, csFunctions = [] }
   
   -- Set up parameters
   forM_ params $ \p -> setLocal p ("%" ++ p ++ ".ptr")
@@ -655,25 +790,29 @@ compileTopLevel (TLFn name params body) = do
   result <- compileExpr body'
   emit $ "  ret %Value " ++ result
   
+  -- Get body code and any nested lambda functions
   bodyCode <- gets csCode
-  mapM_ emitFunc bodyCode
-  emitFunc "}"
-  emitFunc ""
+  nestedFuncs <- gets csFunctions
   
-  -- Restore state
-  modify $ \s -> s { csCode = oldCode, csLocals = oldLocals }
+  -- Build the complete function
+  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
+      funcDef = ["define %Value @" ++ name ++ "(" ++ paramList ++ ") {",
+                 "entry:"] ++ bodyCode ++ ["}", ""]
+  
+  -- Restore state with nested lambdas first, then this function
+  modify $ \s -> s { csCode = oldCode, 
+                     csLocals = oldLocals, 
+                     csFunctions = oldFunctions ++ nestedFuncs ++ funcDef }
 
 compileTopLevel (TLProc name params stmts) = do
   -- Similar to TLFn but with block body
   modify $ \s -> s { csFuncNames = name : csFuncNames s }
   
-  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
-  emitFunc $ "define %Value @" ++ name ++ "(" ++ paramList ++ ") {"
-  emitFunc "entry:"
-  
+  -- Save state
   oldCode <- gets csCode
   oldLocals <- gets csLocals
-  modify $ \s -> s { csCode = [], csLocals = M.empty }
+  oldFunctions <- gets csFunctions
+  modify $ \s -> s { csCode = [], csLocals = M.empty, csFunctions = [] }
   
   forM_ params $ \p -> setLocal p ("%" ++ p ++ ".ptr")
   
@@ -684,12 +823,19 @@ compileTopLevel (TLProc name params stmts) = do
   result <- boxInt "0"
   emit $ "  ret %Value " ++ result
   
+  -- Get body code and any nested lambda functions
   bodyCode <- gets csCode
-  mapM_ emitFunc bodyCode
-  emitFunc "}"
-  emitFunc ""
+  nestedFuncs <- gets csFunctions
   
-  modify $ \s -> s { csCode = oldCode, csLocals = oldLocals }
+  -- Build the complete function
+  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
+      funcDef = ["define %Value @" ++ name ++ "(" ++ paramList ++ ") {",
+                 "entry:"] ++ bodyCode ++ ["}", ""]
+  
+  -- Restore state with nested lambdas first, then this function
+  modify $ \s -> s { csCode = oldCode, 
+                     csLocals = oldLocals, 
+                     csFunctions = oldFunctions ++ nestedFuncs ++ funcDef }
 
 compileTopLevel (TLLet name expr) = do
   let expr' = P.desugarPipes expr
