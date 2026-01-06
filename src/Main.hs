@@ -164,7 +164,7 @@ findCallsInExpr bound (EBlock tops mexpr) =
       (Set.insert name b, cs ++ findCallsInExpr (Set.union b (Set.fromList params)) body)
     collectTop (b, cs) (TLProc name params stmts) =
       let (b', cs') = foldl collectTop (Set.union b (Set.fromList params), []) stmts
-      in (Set.insert name b, cs ++ cs')
+      in (Set.insert name b', cs ++ cs')
     collectTop (b, cs) (TLExpr expr) = (b, cs ++ findCallsInExpr b expr)
     collectTop (b, cs) (TLImport _ _) = (b, cs)
 findCallsInExpr bound (ESeq es) = concatMap (findCallsInExpr bound) es

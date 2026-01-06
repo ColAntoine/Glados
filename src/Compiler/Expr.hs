@@ -251,6 +251,13 @@ compilePrint arg = do
   emit $ "  br label %" ++ endLabel
   
   emit $ strLabel ++ ":"
+  isString <- freshReg
+  invalidLabel <- freshLabel "print.invalid"
+  emit $ "  " ++ isString ++ " = icmp eq i64 " ++ tag ++ ", 2"
+  emit $ "  br i1 " ++ isString ++ ", label %" ++ "print.string" ++
+    ", label %" ++ invalidLabel
+  
+  emit $ "print.string" ++ ":"
   strPtr <- freshReg
   strFmt <- addString "%s"
   emit $ "  " ++ strPtr ++ " = inttoptr i64 " ++ raw ++ " to i8*"
@@ -259,6 +266,14 @@ compilePrint arg = do
     show strFmt ++ ", i64 0, i64 0"
   emit $ "  call i32 (i8*, ...) @printf(i8* " ++ fmtPtr2 ++
     ", i8* " ++ strPtr ++ ")"
+  emit $ "  br label %" ++ endLabel
+  
+  emit $ invalidLabel ++ ":"
+  invalidMsg <- addString "error: cannot print non-printable type\n"
+  invalidPtr <- freshReg
+  emit $ "  " ++ invalidPtr ++ " = getelementptr [40 x i8], [40 x i8]* @.str." ++
+    show invalidMsg ++ ", i64 0, i64 0"
+  emit $ "  call i32 (i8*, ...) @printf(i8* " ++ invalidPtr ++ ")"
   emit $ "  br label %" ++ endLabel
   
   emit $ endLabel ++ ":"
@@ -423,7 +438,29 @@ compileTuple = compileArray 4
 
 compileClosureCall :: String -> [Expr] -> Compiler String
 compileClosureCall closureVal args = do
+  closureTag <- getTag closureVal
   closurePtrInt <- unboxValue closureVal
+  
+  -- Verify that the value is actually a closure (tag 5)
+  isClosure <- freshReg
+  emit $ "  " ++ isClosure ++ " = icmp eq i64 " ++ closureTag ++ ", 5"
+  
+  closureLabel <- freshLabel "call.closure"
+  errorLabel <- freshLabel "call.error"
+  continueLabel <- freshLabel "call.continue"
+  
+  emit $ "  br i1 " ++ isClosure ++ ", label %" ++ closureLabel ++ ", label %" ++ errorLabel
+  
+  emit $ errorLabel ++ ":"
+  errMsg <- addString "error: attempt to call non-closure value\n"
+  errPtr <- freshReg
+  emit $ "  " ++ errPtr ++ " = getelementptr [41 x i8], [41 x i8]* @.str." ++
+    show errMsg ++ ", i64 0, i64 0"
+  emit $ "  call i32 (i8*, ...) @printf(i8* " ++ errPtr ++ ")"
+  emit $ "  call void @exit(i32 1)"
+  emit $ "  br label %" ++ continueLabel
+  
+  emit $ closureLabel ++ ":"
   closurePtr <- freshReg
   emit $ "  " ++ closurePtr ++ " = inttoptr i64 " ++ closurePtrInt ++ " to %Closure*"
   
@@ -452,8 +489,74 @@ compileClosureCall closureVal args = do
   result <- freshReg
   let argList = intercalate ", " (["%Value* " ++ envPtr] ++ ["%Value* " ++ r | r <- argRegs])
   emit $ "  " ++ result ++ " = call %Value " ++ funcTyped ++ "(" ++ argList ++ ")"
+  
+  emit $ continueLabel ++ ":"
   return result
 
--- Stub for topLevel function referenced in EBlock
+-- Compile top-level statements within EBlock expressions
 compileTopLevelImpl :: TopLevel -> Compiler ()
-compileTopLevelImpl _ = return ()
+compileTopLevelImpl (TLLet name expr) = do
+  let expr' = P.desugarPipes expr
+  val <- compileExpr expr'
+  ptr <- freshReg
+  emit $ "  " ++ ptr ++ " = alloca %Value"
+  emit $ "  store %Value " ++ val ++ ", %Value* " ++ ptr
+  setLocal name ptr
+
+compileTopLevelImpl (TLFn name params body) = do
+  modify $ \s -> s { csFuncNames = name : csFuncNames s }
+  
+  oldCode <- gets csCode
+  oldLocals <- gets csLocals
+  oldFunctions <- gets csFunctions
+  modify $ \s -> s { csCode = [], csLocals = M.empty, csFunctions = [] }
+  
+  forM_ params $ \p -> setLocal p ("%" ++ p ++ ".ptr")
+  
+  let body' = P.desugarPipes body
+  result <- compileExpr body'
+  emit $ "  ret %Value " ++ result
+  
+  bodyCode <- gets csCode
+  nestedFuncs <- gets csFunctions
+  
+  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
+      funcDef = ["define %Value @" ++ name ++ "(" ++ paramList ++ ") {",
+                 "entry:"] ++ bodyCode ++ ["}", ""]
+  
+  modify $ \s -> s { csCode = oldCode, 
+                     csLocals = oldLocals, 
+                     csFunctions = oldFunctions ++ nestedFuncs ++ funcDef }
+
+compileTopLevelImpl (TLProc name params stmts) = do
+  modify $ \s -> s { csFuncNames = name : csFuncNames s }
+  
+  oldCode <- gets csCode
+  oldLocals <- gets csLocals
+  oldFunctions <- gets csFunctions
+  modify $ \s -> s { csCode = [], csLocals = M.empty, csFunctions = [] }
+  
+  forM_ params $ \p -> setLocal p ("%" ++ p ++ ".ptr")
+  
+  forM_ stmts compileTopLevelImpl
+  
+  result <- boxInt "0"
+  emit $ "  ret %Value " ++ result
+  
+  bodyCode <- gets csCode
+  nestedFuncs <- gets csFunctions
+  
+  let paramList = intercalate ", " ["%Value* %" ++ p ++ ".ptr" | p <- params]
+      funcDef = ["define %Value @" ++ name ++ "(" ++ paramList ++ ") {",
+                 "entry:"] ++ bodyCode ++ ["}", ""]
+  
+  modify $ \s -> s { csCode = oldCode, 
+                     csLocals = oldLocals, 
+                     csFunctions = oldFunctions ++ nestedFuncs ++ funcDef }
+
+compileTopLevelImpl (TLExpr expr) = do
+  let expr' = P.desugarPipes expr
+  _ <- compileExpr expr'
+  return ()
+
+compileTopLevelImpl (TLImport _ _) = return ()
