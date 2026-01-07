@@ -15,12 +15,13 @@ data CompilerState = CompilerState
   , csFunctions  :: [String]
   , csLocals     :: M.Map String String
   , csFuncNames  :: [String]
+  , csCurrentBlock :: String  -- Track current basic block name
   }
 
 type Compiler a = State CompilerState a
 
 initialState :: CompilerState
-initialState = CompilerState 0 0 0 [] [] [] M.empty []
+initialState = CompilerState 0 0 0 [] [] [] M.empty [] "entry"
 
 freshReg :: Compiler String
 freshReg = do
@@ -33,6 +34,20 @@ freshLabel prefix = do
   n <- gets csNextLabel
   modify $ \s -> s { csNextLabel = n + 1 }
   return $ prefix ++ show n
+
+-- | Set the current basic block (used when emitting labels)
+setCurrentBlock :: String -> Compiler ()
+setCurrentBlock name = modify $ \s -> s { csCurrentBlock = name }
+
+-- | Get the current basic block name
+getCurrentBlock :: Compiler String
+getCurrentBlock = gets csCurrentBlock
+
+-- | Emit a label and update current block tracking
+emitLabel :: String -> Compiler ()
+emitLabel name = do
+  emit $ name ++ ":"
+  setCurrentBlock name
 
 emit :: String -> Compiler ()
 emit line = modify $ \s -> s { csCode = csCode s ++ [line] }

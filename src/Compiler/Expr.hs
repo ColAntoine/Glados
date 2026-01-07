@@ -152,19 +152,21 @@ compileExpr (EIf cond thenE elseE) = do
   emit $ "  br i1 " ++ condBool ++ ", label %" ++ thenLabel ++
     ", label %" ++ elseLabel
   
-  emit $ thenLabel ++ ":"
+  emitLabel thenLabel
   thenResult <- compileExpr thenE
   emit $ "  br label %" ++ endLabel
+  thenEndBlock <- getCurrentBlock  -- Get actual predecessor block
   
-  emit $ elseLabel ++ ":"
+  emitLabel elseLabel
   elseResult <- compileExpr elseE
   emit $ "  br label %" ++ endLabel
+  elseEndBlock <- getCurrentBlock  -- Get actual predecessor block
   
-  emit $ endLabel ++ ":"
+  emitLabel endLabel
   result <- freshReg
   emit $ "  " ++ result ++ " = phi %Value [ " ++ thenResult ++
-    ", %" ++ thenLabel ++ " ], [ " ++ elseResult ++
-    ", %" ++ elseLabel ++ " ]"
+    ", %" ++ thenEndBlock ++ " ], [ " ++ elseResult ++
+    ", %" ++ elseEndBlock ++ " ]"
   return result
 
 compileExpr (ECall (EVar "print") [arg]) = compilePrint arg
@@ -219,7 +221,7 @@ compilePrint arg = do
   emit $ "  br i1 " ++ isInt ++ ", label %" ++ intLabel ++
     ", label %" ++ notIntLabel
   
-  emit $ intLabel ++ ":"
+  emitLabel intLabel
   intFmt <- addString "%ld\n"
   fmtPtr1 <- freshReg
   emit $ "  " ++ fmtPtr1 ++ " = getelementptr [6 x i8], [6 x i8]* @.str." ++
@@ -228,12 +230,12 @@ compilePrint arg = do
     ", i64 " ++ raw ++ ")"
   emit $ "  br label %" ++ endLabel
   
-  emit $ notIntLabel ++ ":"
+  emitLabel notIntLabel
   emit $ "  " ++ isBool ++ " = icmp eq i64 " ++ tag ++ ", 1"
   emit $ "  br i1 " ++ isBool ++ ", label %" ++ boolLabel ++
     ", label %" ++ strLabel
   
-  emit $ boolLabel ++ ":"
+  emitLabel boolLabel
   trueStr <- addString "#t\n"
   falseStr <- addString "#f\n"
   boolCond <- freshReg
@@ -250,14 +252,15 @@ compilePrint arg = do
   emit $ "  call i32 (i8*, ...) @printf(i8* " ++ selPtr ++ ")"
   emit $ "  br label %" ++ endLabel
   
-  emit $ strLabel ++ ":"
+  emitLabel strLabel
   isString <- freshReg
   invalidLabel <- freshLabel "print.invalid"
+  stringLabel <- freshLabel "print.string"
   emit $ "  " ++ isString ++ " = icmp eq i64 " ++ tag ++ ", 2"
-  emit $ "  br i1 " ++ isString ++ ", label %" ++ "print.string" ++
+  emit $ "  br i1 " ++ isString ++ ", label %" ++ stringLabel ++
     ", label %" ++ invalidLabel
   
-  emit $ "print.string" ++ ":"
+  emitLabel stringLabel
   strPtr <- freshReg
   strFmt <- addString "%s"
   emit $ "  " ++ strPtr ++ " = inttoptr i64 " ++ raw ++ " to i8*"
@@ -268,7 +271,7 @@ compilePrint arg = do
     ", i8* " ++ strPtr ++ ")"
   emit $ "  br label %" ++ endLabel
   
-  emit $ invalidLabel ++ ":"
+  emitLabel invalidLabel
   invalidMsg <- addString "error: cannot print non-printable type\n"
   invalidPtr <- freshReg
   emit $ "  " ++ invalidPtr ++ " = getelementptr [40 x i8], [40 x i8]* @.str." ++
@@ -276,7 +279,7 @@ compilePrint arg = do
   emit $ "  call i32 (i8*, ...) @printf(i8* " ++ invalidPtr ++ ")"
   emit $ "  br label %" ++ endLabel
   
-  emit $ endLabel ++ ":"
+  emitLabel endLabel
   return val
 
 compileKnownFunctionCall :: String -> [Expr] -> Compiler String
@@ -451,16 +454,16 @@ compileClosureCall closureVal args = do
   
   emit $ "  br i1 " ++ isClosure ++ ", label %" ++ closureLabel ++ ", label %" ++ errorLabel
   
-  emit $ errorLabel ++ ":"
+  emitLabel errorLabel
   errMsg <- addString "error: attempt to call non-closure value\n"
   errPtr <- freshReg
   emit $ "  " ++ errPtr ++ " = getelementptr [41 x i8], [41 x i8]* @.str." ++
     show errMsg ++ ", i64 0, i64 0"
   emit $ "  call i32 (i8*, ...) @printf(i8* " ++ errPtr ++ ")"
   emit $ "  call void @exit(i32 1)"
-  emit $ "  br label %" ++ continueLabel
+  emit $ "  unreachable"
   
-  emit $ closureLabel ++ ":"
+  emitLabel closureLabel
   closurePtr <- freshReg
   emit $ "  " ++ closurePtr ++ " = inttoptr i64 " ++ closurePtrInt ++ " to %Closure*"
   
@@ -489,8 +492,6 @@ compileClosureCall closureVal args = do
   result <- freshReg
   let argList = intercalate ", " (["%Value* " ++ envPtr] ++ ["%Value* " ++ r | r <- argRegs])
   emit $ "  " ++ result ++ " = call %Value " ++ funcTyped ++ "(" ++ argList ++ ")"
-  
-  emit $ continueLabel ++ ":"
   return result
 
 -- Compile top-level statements within EBlock expressions

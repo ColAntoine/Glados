@@ -1,5 +1,6 @@
 module Interpreter
   ( runProgram
+  , runProgramFromFile
   , Value(..)
   ) where
 
@@ -10,6 +11,9 @@ import Data.Maybe (fromMaybe)
 import Control.Monad (forM)
 import System.IO (hPutStrLn, stderr)
 import System.Exit (exitWith, ExitCode(..))
+import System.Directory (doesFileExist)
+import System.FilePath (takeDirectory, (</>))
+import Text.Megaparsec.Error (errorBundlePretty)
 
 data Value
   = VInt Int64
@@ -222,9 +226,83 @@ applyValue env (VClosure params body closEnv) args =
 applyValue env (VPrim f) args = f args
 applyValue _ _ _ = pure (Left "type error")
 
+-- Process imports: load imported files and add their exported symbols to environment
+processImportsWithDir :: Env -> FilePath -> Program -> IO (Either String Env)
+processImportsWithDir env _ [] = pure (Right env)
+processImportsWithDir env baseDir (TLImport filePath items : rest) = do
+  -- Resolve the file path relative to the base directory
+  let resolvedPath = baseDir </> filePath
+  -- Load the imported file
+  exists <- doesFileExist resolvedPath
+  if not exists
+    then pure (Left $ "Import error: file not found: " ++ resolvedPath)
+    else do
+      input <- readFile resolvedPath
+      case P.parseProgram input of
+        Left err -> pure (Left $ "Import error: " ++ errorBundlePretty err)
+        Right importedProg -> do
+          let importDir = takeDirectory resolvedPath
+          -- Recursively process imports in imported file
+          env' <- processImportsWithDir env importDir importedProg
+          case env' of
+            Left err -> pure (Left err)
+            Right env'' -> do
+              -- Evaluate top-level definitions in imported file
+              env''' <- evalTopLevels env'' (filter (not . isImport) importedProg)
+              case env''' of
+                Left err -> pure (Left err)
+                Right env'''' -> do
+                  -- Filter to only requested items
+                  let filtered = [(k, v) | (k, v) <- env'''', k `elem` items]
+                  processImportsWithDir (filtered ++ env) baseDir rest
+processImportsWithDir env baseDir (_ : rest) = processImportsWithDir env baseDir rest
+
+isImport :: TopLevel -> Bool
+isImport (TLImport _ _) = True
+isImport _ = False
+
+-- Helper to evaluate all top-level definitions
+evalTopLevels :: Env -> Program -> IO (Either String Env)
+evalTopLevels env [] = pure (Right env)
+evalTopLevels env (t:ts) = case t of
+  TLFn name params body -> do
+    case lookup name env of
+      Just _ -> pure (Left ("function '" ++ name ++ "' is already defined"))
+      Nothing -> do
+        let body' = P.desugarPipes body
+            recEnv = (name, closure') : env
+            closure' = VClosure params body' recEnv
+        evalTopLevels recEnv ts
+  TLProc name params statements -> do
+    case lookup name env of
+      Just _ -> pure (Left ("procedure '" ++ name ++ "' is already defined"))
+      Nothing -> do
+        let recEnv = (name, procClosure') : env
+            procClosure' = VClosure params (EBlock statements Nothing) recEnv
+        evalTopLevels recEnv ts
+  TLLet name expr -> do
+    case lookup name env of
+      Just _ -> pure (Left ("variable '" ++ name ++ "' is already defined"))
+      Nothing -> do
+        let expr' = P.desugarPipes expr
+        rv <- evalExpr env expr'
+        case rv of
+          Left err -> pure (Left err)
+          Right val -> evalTopLevels ((name, val) : env) ts
+  TLExpr ex -> do
+    let ex' = P.desugarPipes ex
+    rv <- evalExpr env ex'
+    case rv of
+      Left err -> pure (Left err)
+      Right _ -> evalTopLevels env ts
+  TLImport _ _ -> evalTopLevels env ts
+
 -- Run whole program: bind functions, evaluate top-level expressions and return results (already printed by builtins)
 runProgram :: Program -> IO (Either String ())
-runProgram prog = do
+runProgram prog = runProgramFromFile prog "."
+
+runProgramFromFile :: Program -> FilePath -> IO (Either String ())
+runProgramFromFile prog baseDir = do
   env0 <- initialEnv
   -- process top-level forms sequentially, updating env
   let loop env [] = pure (Right ())
@@ -265,5 +343,15 @@ runProgram prog = do
           case rv of
             Left err -> pure (Left err)
             Right _ -> loop env ts
+        TLImport _ _ -> 
+          -- Imports should be handled separately
+          loop env ts
 
-  loop env0 prog
+  -- First, load all imports
+  env0' <- processImportsWithDir env0 baseDir prog
+  case env0' of
+    Left err -> pure (Left err)
+    Right env1 -> loop env1 (filter (not . isImport) prog)
+  where
+    isImport (TLImport _ _) = True
+    isImport _ = False
