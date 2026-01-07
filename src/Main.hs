@@ -11,7 +11,7 @@ import System.Environment (getArgs)
 import System.Exit (exitWith, ExitCode(..))
 import Text.Megaparsec.Error (errorBundlePretty)
 import qualified Parser as P
-import Interpreter (runProgram, Value(..))
+import Interpreter (runProgram, runProgramFromFile, Value(..))
 import Compiler (compileProgramToFile)
 import System.IO (hPutStrLn, stderr)
 import System.Process (readProcessWithExitCode)
@@ -56,7 +56,7 @@ runInterpreter file = do
             hPutStrLn stderr (errorBundlePretty err) >>
             exitWith (ExitFailure 84)
         Right prog -> do
-            r <- runProgram prog
+            r <- runProgramFromFile prog (takeDirectory file)
             case r of
                 Left err ->
                     hPutStrLn stderr ("*** ERROR : " ++ err ++
@@ -209,7 +209,7 @@ runCompilerMulti files output = do
                                [llFile, "-o", output] ""
                            case exitCode of
                                ExitSuccess ->
-                                   removeFile llFile >>
+                                   -- removeFile llFile >>
                                    return ()
                                ExitFailure _ ->
                                    (hPutStrLn stderr $

@@ -52,7 +52,7 @@ pProgram :: Parser Program
 pProgram = sc *> many pTopLevel <* eof
 
 pTopLevel :: Parser TopLevel
-pTopLevel = choice [pFn, pLet, TLExpr <$> pExpr]
+pTopLevel = choice [pImport, pFn, pLet, TLExpr <$> pExpr]
 
 pFn :: Parser TopLevel
 pFn = do
@@ -82,7 +82,22 @@ pLet = do
     expr <- pExpr
     return $ TLLet name expr
 
-pBlock :: Parser Expr
+pImport :: Parser TopLevel
+pImport = do
+    reserved "import"
+    _ <- symbol "{"
+    items <- identifier `sepBy` symbol ","
+    _ <- symbol "}"
+    _ <- reserved "from"
+    filePath <- parseFilePath
+    return $ TLImport filePath items
+
+parseFilePath :: Parser FilePath
+parseFilePath = do
+    _ <- char '"'
+    path <- manyTill L.charLiteral (char '"')
+    sc
+    return path
 pBlock = do
     _ <- symbol "{"
     -- Parse top-level forms (fn/let/expr), but don't consume final expression as TLExpr
