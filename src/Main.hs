@@ -20,32 +20,43 @@ import System.FilePath (dropExtension, takeDirectory, (</>))
 import AST
 import qualified Data.Set as Set
 import Data.List (nub)
-import Control.Monad (forM, foldM)
+import Control.Monad (forM, foldM, when, unless)
 
 main :: IO ()
 main = do
     args <- getArgs
     case parseArgs args of
         Just (Interpret file) -> runInterpreter file
-        Just (Compile files output) -> runCompilerMulti files output
+        Just (Compile files output keepLL readable) -> runCompilerMulti files output keepLL readable
         Nothing ->
             hPutStrLn stderr
-              "Usage: glados -i <file>                  (interpret)" >>
+              "Usage: glados -i <file>                    (interpret)" >>
             hPutStrLn stderr
-              "       glados -c <files...> [-o out]  (compile)" >>
+              "       glados -c <files...> [-o out] [-ll] [-r]  (compile)" >>
+            hPutStrLn stderr
+              "  -ll : keep the .ll (LLVM IR) file" >>
+            hPutStrLn stderr
+              "  -r  : generate readable .s (assembly) file" >>
             exitWith (ExitFailure 84)
 
-data Mode = Interpret FilePath | Compile [FilePath] FilePath
+data Mode = Interpret FilePath | Compile [FilePath] FilePath Bool Bool  -- files, output, keepLL, readable
 
 parseArgs :: [String] -> Maybe Mode
 parseArgs ["-i", file] = Just (Interpret file)
 parseArgs args | "-c" `elem` args = 
-    let (beforeO, rest) = break (== "-o") (dropWhile (/= "-c") args)
-        files = tail beforeO  -- skip "-c"
-        output = case rest of
-                  ["-o", out] -> out
-                  _ -> dropExtension (head files)
-    in if null files then Nothing else Just (Compile files output)
+    let cPos = length $ takeWhile (/= "-c") args
+        afterC = drop (cPos + 1) args
+        (beforeO, rest) = break (== "-o") afterC
+        files = takeWhile (\x -> x /= "-o" && x /= "-ll" && x /= "-r") beforeO
+        output = case break (== "-o") rest of
+                  (_, ("-o":out:_)) -> out
+                  _ -> case files of
+                        (f:_) -> dropExtension f
+                        [] -> "output"
+        allFlags = drop 1 $ dropWhile (/= "-o") rest
+        keepLL = "-ll" `elem` allFlags
+        readable = "-r" `elem` allFlags
+    in if null files then Nothing else Just (Compile files output keepLL readable)
 parseArgs _ = Nothing
 
 runInterpreter :: FilePath -> IO ()
@@ -186,8 +197,8 @@ isBuiltin "print" = True
 isBuiltin _ = False
 
 -- | Compile multiple files
-runCompilerMulti :: [FilePath] -> FilePath -> IO ()
-runCompilerMulti files output = do
+runCompilerMulti :: [FilePath] -> FilePath -> Bool -> Bool -> IO ()
+runCompilerMulti files output keepLL readable = do
     result <- loadMultipleFiles files
     case result of
         Left err ->
@@ -208,8 +219,15 @@ runCompilerMulti files output = do
                              readProcessWithExitCode "clang"
                                [llFile, "-o", output] ""
                            case exitCode of
-                               ExitSuccess ->
-                                   -- removeFile llFile >>
+                               ExitSuccess -> do
+                                   -- Generate readable assembly if requested
+                                   when readable $ do
+                                     _ <- readProcessWithExitCode "clang"
+                                       ["-S", llFile, "-o", output ++ ".s"] ""
+                                     return ()
+                                   -- Delete .ll file unless -ll flag was used
+                                   unless keepLL $
+                                     removeFile llFile
                                    return ()
                                ExitFailure _ ->
                                    (hPutStrLn stderr $
