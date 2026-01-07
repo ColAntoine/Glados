@@ -105,10 +105,10 @@ pTerm = choice
     , pIf
     , pList
     , pRet
+    , try pLambda  -- must try before parens and tuple
     , try pTuple  -- must try before parens
     , EVar <$> identifier
     , parens pExpr
-    , pLambda
     ]
 
 pString :: Parser Expr

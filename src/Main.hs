@@ -119,7 +119,8 @@ checkFunctionDefinitions :: Program -> Either String ()
 checkFunctionDefinitions prog =
     let definedFuncs = Set.fromList
           ([name | TLFn name _ _ <- prog] ++
-           [name | TLProc name _ _ <- prog])
+           [name | TLProc name _ _ <- prog] ++
+           [name | TLLet name _ <- prog])  -- Include let bindings as possible callables
         calledFuncs = findCalledFuncs prog
         undefined = Set.filter (not . isBuiltin)
           (calledFuncs Set.\\ definedFuncs)
@@ -128,39 +129,56 @@ checkFunctionDefinitions prog =
         else Left $
           "Undefined functions: " ++ show (Set.toList undefined)
 
--- | Find all function calls in a program
+-- | Find all function calls in a program, excluding known bound names
 findCalledFuncs :: Program -> Set.Set String
 findCalledFuncs prog =
   Set.fromList [name | TLExpr expr <- prog,
-                       name <- findCallsInExpr expr] <>
-  Set.unions [Set.fromList (findCallsInExpr body) |
-              TLFn _ _ body <- prog] <>
-  Set.unions [Set.fromList (findCallsInTopLevel top) |
+                       name <- findCallsInExpr Set.empty expr] <>
+  Set.unions [Set.fromList (findCallsInExpr (Set.fromList params) body) |
+              TLFn _ params body <- prog] <>
+  Set.unions [Set.fromList (findCallsInTopLevel Set.empty top) |
               TLProc _ _ tops <- prog, top <- tops]
 
-findCallsInExpr :: Expr -> [String]
-findCallsInExpr (ECall (EVar name) args) =
-  name : concatMap findCallsInExpr args
-findCallsInExpr (ECall expr args) =
-  findCallsInExpr expr ++ concatMap findCallsInExpr args
-findCallsInExpr (EBinary _ e1 e2) =
-  findCallsInExpr e1 ++ findCallsInExpr e2
-findCallsInExpr (EUnary _ e) = findCallsInExpr e
-findCallsInExpr (EIf e1 e2 e3) =
-  findCallsInExpr e1 ++ findCallsInExpr e2 ++ findCallsInExpr e3
-findCallsInExpr (ELam _ body) = findCallsInExpr body
-findCallsInExpr (EList es) = concatMap findCallsInExpr es
-findCallsInExpr (ETuple es) = concatMap findCallsInExpr es
-findCallsInExpr (EBlock tops mexpr) =
-  findCallsInTopLevel `concatMap` tops ++ maybe [] findCallsInExpr mexpr
-findCallsInExpr _ = []
+findCallsInExpr :: Set.Set String -> Expr -> [String]
+findCallsInExpr bound (ECall (EVar name) args)
+  | name `Set.member` bound = concatMap (findCallsInExpr bound) args
+  | otherwise = name : concatMap (findCallsInExpr bound) args
+findCallsInExpr bound (ECall expr args) =
+  findCallsInExpr bound expr ++ concatMap (findCallsInExpr bound) args
+findCallsInExpr bound (EBinary _ e1 e2) =
+  findCallsInExpr bound e1 ++ findCallsInExpr bound e2
+findCallsInExpr bound (EUnary _ e) = findCallsInExpr bound e
+findCallsInExpr bound (EIf e1 e2 e3) =
+  findCallsInExpr bound e1 ++ findCallsInExpr bound e2 ++ findCallsInExpr bound e3
+findCallsInExpr bound (ELam params body) = 
+  findCallsInExpr (Set.union bound (Set.fromList params)) body
+findCallsInExpr bound (EList es) = concatMap (findCallsInExpr bound) es
+findCallsInExpr bound (ETuple es) = concatMap (findCallsInExpr bound) es
+findCallsInExpr bound (EBlock tops mexpr) =
+  let (newBound, calls) = foldl collectTop (bound, []) tops
+  in calls ++ maybe [] (findCallsInExpr newBound) mexpr
+  where
+    collectTop (b, cs) (TLLet name expr) = 
+      (Set.insert name b, cs ++ findCallsInExpr b expr)
+    collectTop (b, cs) (TLFn name params body) = 
+      (Set.insert name b, cs ++ findCallsInExpr (Set.union b (Set.fromList params)) body)
+    collectTop (b, cs) (TLProc name params stmts) =
+      let (b', cs') = foldl collectTop (Set.union b (Set.fromList params), []) stmts
+      in (Set.insert name b', cs ++ cs')
+    collectTop (b, cs) (TLExpr expr) = (b, cs ++ findCallsInExpr b expr)
+    collectTop (b, cs) (TLImport _ _) = (b, cs)
+findCallsInExpr bound (ESeq es) = concatMap (findCallsInExpr bound) es
+findCallsInExpr _ _ = []
 
-findCallsInTopLevel :: TopLevel -> [String]
-findCallsInTopLevel (TLFn _ _ body) = findCallsInExpr body
-findCallsInTopLevel (TLProc _ _ tops) = concatMap findCallsInTopLevel tops
-findCallsInTopLevel (TLLet _ expr) = findCallsInExpr expr
-findCallsInTopLevel (TLExpr expr) = findCallsInExpr expr
-findCallsInTopLevel (TLImport _ _) = []
+findCallsInTopLevel :: Set.Set String -> TopLevel -> [String]
+findCallsInTopLevel bound (TLFn _ params body) = 
+  findCallsInExpr (Set.union bound (Set.fromList params)) body
+findCallsInTopLevel bound (TLProc _ params tops) = 
+  let bound' = Set.union bound (Set.fromList params)
+  in concatMap (findCallsInTopLevel bound') tops
+findCallsInTopLevel bound (TLLet _ expr) = findCallsInExpr bound expr
+findCallsInTopLevel bound (TLExpr expr) = findCallsInExpr bound expr
+findCallsInTopLevel _ (TLImport _ _) = []
 
 -- | Check if function is a builtin
 isBuiltin :: String -> Bool
