@@ -9,7 +9,7 @@ NAME = glados
 SRC = src/Main.hs
 
 all:
-	stack build
+	stack build --test --no-run-tests
 	cp "`stack path --local-install-root`/bin/$(NAME)" .
 
 run: all

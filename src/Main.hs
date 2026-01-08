@@ -27,19 +27,21 @@ main = do
     args <- getArgs
     case parseArgs args of
         Just (Interpret file) -> runInterpreter file
-        Just (Compile files output keepLL readable) -> runCompilerMulti files output keepLL readable
+        Just (Compile files output keepLL readable cabi) -> runCompilerMulti files output keepLL readable cabi
         Nothing ->
             hPutStrLn stderr
-              "Usage: glados -i <file>                    (interpret)" >>
+              "Usage: glados -i <file>                           (interpret)" >>
             hPutStrLn stderr
-              "       glados -c <files...> [-o out] [-ll] [-r]  (compile)" >>
+              "       glados -c <files...> [-o out] [-ll] [-r] [-cabi]  (compile)" >>
             hPutStrLn stderr
-              "  -ll : keep the .ll (LLVM IR) file" >>
+              "  -ll   : keep the .ll (LLVM IR) file" >>
             hPutStrLn stderr
-              "  -r  : generate readable .s (assembly) file" >>
+              "  -r    : generate readable .s (assembly) file" >>
+            hPutStrLn stderr
+              "  -cabi : generate C ABI compatible functions (no boxing)" >>
             exitWith (ExitFailure 84)
 
-data Mode = Interpret FilePath | Compile [FilePath] FilePath Bool Bool  -- files, output, keepLL, readable
+data Mode = Interpret FilePath | Compile [FilePath] FilePath Bool Bool Bool  -- files, output, keepLL, readable, cabi
 
 parseArgs :: [String] -> Maybe Mode
 parseArgs ["-i", file] = Just (Interpret file)
@@ -47,7 +49,7 @@ parseArgs args | "-c" `elem` args =
     let cPos = length $ takeWhile (/= "-c") args
         afterC = drop (cPos + 1) args
         (beforeO, rest) = break (== "-o") afterC
-        files = takeWhile (\x -> x /= "-o" && x /= "-ll" && x /= "-r") beforeO
+        files = takeWhile (\x -> x /= "-o" && x /= "-ll" && x /= "-r" && x /= "-cabi") beforeO
         output = case break (== "-o") rest of
                   (_, ("-o":out:_)) -> out
                   _ -> case files of
@@ -56,7 +58,8 @@ parseArgs args | "-c" `elem` args =
         allFlags = drop 1 $ dropWhile (/= "-o") rest
         keepLL = "-ll" `elem` allFlags
         readable = "-r" `elem` allFlags
-    in if null files then Nothing else Just (Compile files output keepLL readable)
+        cabi = "-cabi" `elem` allFlags
+    in if null files then Nothing else Just (Compile files output keepLL readable cabi)
 parseArgs _ = Nothing
 
 runInterpreter :: FilePath -> IO ()
@@ -197,8 +200,8 @@ isBuiltin "print" = True
 isBuiltin _ = False
 
 -- | Compile multiple files
-runCompilerMulti :: [FilePath] -> FilePath -> Bool -> Bool -> IO ()
-runCompilerMulti files output keepLL readable = do
+runCompilerMulti :: [FilePath] -> FilePath -> Bool -> Bool -> Bool -> IO ()
+runCompilerMulti files output keepLL readable cabi = do
     result <- loadMultipleFiles files
     case result of
         Left err ->
@@ -212,25 +215,49 @@ runCompilerMulti files output keepLL readable = do
                     exitWith (ExitFailure 84)
                 Right () ->
                     let llFile = output ++ ".ll"
-                    in compileProgramToFile prog llFile >>
+                    in compileProgramToFile prog llFile cabi >>
                        do
-                           -- Call clang to compile the LLVM IR
-                           (exitCode, _, clangErr) <-
-                             readProcessWithExitCode "clang"
-                               [llFile, "-o", output] ""
-                           case exitCode of
-                               ExitSuccess -> do
-                                   -- Generate readable assembly if requested
-                                   when readable $ do
-                                     _ <- readProcessWithExitCode "clang"
-                                       ["-S", llFile, "-o", output ++ ".s"] ""
-                                     return ()
-                                   -- Delete .ll file unless -ll flag was used
-                                   unless keepLL $
-                                     removeFile llFile
-                                   return ()
-                               ExitFailure _ ->
-                                   (hPutStrLn stderr $
-                                     "Clang compilation failed:\n" ++
-                                     clangErr) >>
-                                   exitWith (ExitFailure 84)
+                           if cabi then
+                             -- In CABI mode, just compile to object file
+                             do
+                               (exitCode, _, clangErr) <-
+                                 readProcessWithExitCode "clang"
+                                   ["-c", llFile, "-o", output ++ ".o"] ""
+                               case exitCode of
+                                   ExitSuccess -> do
+                                       -- Generate readable assembly if requested
+                                       when readable $ do
+                                         _ <- readProcessWithExitCode "clang"
+                                           ["-S", llFile, "-o", output ++ ".s"] ""
+                                         return ()
+                                       -- Delete .ll file unless -ll flag was used
+                                       unless keepLL $
+                                         removeFile llFile
+                                       return ()
+                                   ExitFailure _ ->
+                                       (hPutStrLn stderr $
+                                         "Clang compilation failed:\n" ++
+                                         clangErr) >>
+                                       exitWith (ExitFailure 84)
+                           else
+                             -- Normal mode: link to executable
+                             do
+                               (exitCode, _, clangErr) <-
+                                 readProcessWithExitCode "clang"
+                                   [llFile, "-o", output] ""
+                               case exitCode of
+                                   ExitSuccess -> do
+                                       -- Generate readable assembly if requested
+                                       when readable $ do
+                                         _ <- readProcessWithExitCode "clang"
+                                           ["-S", llFile, "-o", output ++ ".s"] ""
+                                         return ()
+                                       -- Delete .ll file unless -ll flag was used
+                                       unless keepLL $
+                                         removeFile llFile
+                                       return ()
+                                   ExitFailure _ ->
+                                       (hPutStrLn stderr $
+                                         "Clang compilation failed:\n" ++
+                                         clangErr) >>
+                                       exitWith (ExitFailure 84)

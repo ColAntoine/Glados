@@ -16,12 +16,16 @@ data CompilerState = CompilerState
   , csLocals     :: M.Map String String
   , csFuncNames  :: [String]
   , csCurrentBlock :: String  -- Track current basic block name
+  , csCABIMode   :: Bool      -- Whether we're in C ABI mode
   }
 
 type Compiler a = State CompilerState a
 
 initialState :: CompilerState
-initialState = CompilerState 0 0 0 [] [] [] M.empty [] "entry"
+initialState = CompilerState 0 0 0 [] [] [] M.empty [] "entry" False
+
+initialStateCABI :: CompilerState
+initialStateCABI = CompilerState 0 0 0 [] [] [] M.empty [] "entry" True
 
 freshReg :: Compiler String
 freshReg = do
