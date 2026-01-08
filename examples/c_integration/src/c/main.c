@@ -3,6 +3,8 @@
 
 /* Declare the C ABI compatible factorial function */
 extern int64_t factorial(int64_t n);
+extern void printhelloworld();
+extern char* returnhelloworld();
 
 int main() {
     printf("Flux factorial via C integration\n");
@@ -16,6 +18,11 @@ int main() {
     printf("\n");
     printf("factorial(15) = %ld\n", factorial(15));
     printf("factorial(20) = %ld\n", factorial(20));
+
+    printf("\n");
+
+    printf("%s\n", returnhelloworld());
+    printhelloworld();
 
     return 0;
 }
