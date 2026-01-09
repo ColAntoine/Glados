@@ -48,6 +48,18 @@ initialEnv :: IO Env
 initialEnv = pure
   [ ("print", VPrim primPrint)
   , ("map", VPrim primMap)
+  , ("readFile", VPrim primReadFile)
+  , ("readLines", VPrim primReadLines)
+  , ("writeFile", VPrim primWriteFile)
+  , ("split", VPrim primSplit)
+  , ("join", VPrim primJoin)
+  , ("length", VPrim primLength)
+  , ("charAt", VPrim primCharAt)
+  , ("substring", VPrim primSubstring)
+  , ("get", VPrim primGet)
+  , ("append", VPrim primAppend)
+  , ("concat", VPrim primConcat)
+  , ("replace", VPrim primReplace)
   ]
 
 primPrint :: [Value] -> IO (Either String Value)
@@ -88,6 +100,131 @@ primMap [VPrim f, VList vals] = do
     Right vs -> pure (Right (VList vs))
 primMap [VList vals, VPrim f] = primMap [VPrim f, VList vals]
 primMap _ = pure (Left "type error")
+
+-- File I/O builtins
+primReadFile :: [Value] -> IO (Either String Value)
+primReadFile [VString path] = do
+  exists <- doesFileExist path
+  if not exists
+    then pure (Left ("file not found: " ++ path))
+    else do
+      content <- readFile path
+      pure (Right (VString content))
+primReadFile _ = pure (Left "readFile: expected string (file path)")
+
+primReadLines :: [Value] -> IO (Either String Value)
+primReadLines [VString path] = do
+  exists <- doesFileExist path
+  if not exists
+    then pure (Left ("file not found: " ++ path))
+    else do
+      content <- readFile path
+      let lns = lines content
+      pure (Right (VList (map VString lns)))
+primReadLines _ = pure (Left "readLines: expected string (file path)")
+
+primWriteFile :: [Value] -> IO (Either String Value)
+primWriteFile [VString path, VString content] = do
+  writeFile path content
+  pure (Right (VInt 0))
+primWriteFile _ = pure (Left "writeFile: expected (path: string, content: string)")
+
+-- String operations
+primSplit :: [Value] -> IO (Either String Value)
+primSplit [VString str, VString delim] = do
+  let parts = splitOn delim str
+  pure (Right (VList (map VString parts)))
+  where
+    splitOn :: String -> String -> [String]
+    splitOn _ "" = [""]
+    splitOn "" str = [str]
+    splitOn delim str = split' str
+      where
+        split' [] = [""]
+        split' s = case findPrefix delim s of
+          Just rest -> "" : split' rest
+          Nothing -> case s of
+            [] -> [""]
+            (c:cs) -> case split' cs of
+              (x:xs) -> (c:x):xs
+              [] -> [[c]]
+        
+        findPrefix [] str = Just str
+        findPrefix (d:ds) (c:cs) | d == c = findPrefix ds cs
+        findPrefix _ _ = Nothing
+primSplit _ = pure (Left "split: expected (string, delimiter)")
+
+primJoin :: [Value] -> IO (Either String Value)
+primJoin [VList strs, VString delim] = do
+  strings <- mapM extractString strs
+  case sequence strings of
+    Left err -> pure (Left err)
+    Right ss -> pure (Right (VString (joinWith delim ss)))
+  where
+    extractString (VString s) = pure (Right s)
+    extractString _ = pure (Left "join: list must contain only strings")
+    
+    joinWith _ [] = ""
+    joinWith _ [x] = x
+    joinWith delim (x:xs) = x ++ delim ++ joinWith delim xs
+primJoin _ = pure (Left "join: expected (list of strings, delimiter)")
+
+primLength :: [Value] -> IO (Either String Value)
+primLength [VString s] = pure (Right (VInt (fromIntegral (Prelude.length s))))
+primLength [VList xs] = pure (Right (VInt (fromIntegral (Prelude.length xs))))
+primLength _ = pure (Left "length: expected string or list")
+
+primCharAt :: [Value] -> IO (Either String Value)
+primCharAt [VString s, VInt idx] = 
+  if idx < 0 || idx >= fromIntegral (Prelude.length s)
+    then pure (Left "charAt: index out of bounds")
+    else pure (Right (VString [s !! fromIntegral idx]))
+primCharAt _ = pure (Left "charAt: expected (string, index)")
+
+primSubstring :: [Value] -> IO (Either String Value)
+primSubstring [VString s, VInt start, VInt end] = 
+  let len = fromIntegral (Prelude.length s)
+      start' = fromIntegral start
+      end' = fromIntegral end
+  in if start' < 0 || end' > len || start' > end'
+    then pure (Left "substring: invalid range")
+    else pure (Right (VString (take (end' - start') (drop start' s))))
+primSubstring _ = pure (Left "substring: expected (string, start, end)")
+
+-- List operations
+primGet :: [Value] -> IO (Either String Value)
+primGet [VList lst, VInt idx] =
+  let idx' = fromIntegral idx
+  in if idx' < 0 || idx' >= Prelude.length lst
+    then pure (Left "get: index out of bounds")
+    else pure (Right (lst !! idx'))
+primGet [VString s, VInt idx] =
+  if idx < 0 || idx >= fromIntegral (Prelude.length s)
+    then pure (Left "get: index out of bounds")
+    else pure (Right (VString [s !! fromIntegral idx]))
+primGet _ = pure (Left "get: expected (list/string, index)")
+
+primAppend :: [Value] -> IO (Either String Value)
+primAppend [VList lst, val] = pure (Right (VList (lst ++ [val])))
+primAppend _ = pure (Left "append: expected (list, value)")
+
+primConcat :: [Value] -> IO (Either String Value)
+primConcat [VList lst1, VList lst2] = pure (Right (VList (lst1 ++ lst2)))
+primConcat _ = pure (Left "concat: expected (list, list)")
+
+primReplace :: [Value] -> IO (Either String Value)
+primReplace [VString str, VString old, VString new] = do
+  let result = replaceAll old new str
+  pure (Right (VString result))
+  where
+    replaceAll _ _ "" = ""
+    replaceAll old new str
+      | take (Prelude.length old) str == old =
+          new ++ replaceAll old new (drop (Prelude.length old) str)
+      | otherwise = case str of
+          (c:cs) -> c : replaceAll old new cs
+          [] -> []
+primReplace _ = pure (Left "replace: expected (string, old, new)")
 
 -- Evaluate an expression
 evalExpr :: Env -> Expr -> IO (Either String Value)

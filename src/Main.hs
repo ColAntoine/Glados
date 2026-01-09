@@ -183,6 +183,19 @@ findCallsInTopLevel _ (TLImport _ _) = []
 -- | Check if function is a builtin
 isBuiltin :: String -> Bool
 isBuiltin "print" = True
+isBuiltin "map" = True
+isBuiltin "readFile" = True
+isBuiltin "readLines" = True
+isBuiltin "writeFile" = True
+isBuiltin "split" = True
+isBuiltin "join" = True
+isBuiltin "length" = True
+isBuiltin "charAt" = True
+isBuiltin "substring" = True
+isBuiltin "get" = True
+isBuiltin "append" = True
+isBuiltin "concat" = True
+isBuiltin "replace" = True
 isBuiltin _ = False
 
 -- | Compile multiple files

@@ -30,6 +30,13 @@ boxString ptr = do
     ptrInt ++ ", 1"
   return r1
 
+boxList :: String -> Compiler String
+boxList val = do
+  r1 <- freshReg
+  emit $ "  " ++ r1 ++
+    " = insertvalue %Value { i64 3, i64 undef }, i64 " ++ val ++ ", 1"
+  return r1
+
 unboxValue :: String -> Compiler String
 unboxValue boxed = do
   result <- freshReg
