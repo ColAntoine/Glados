@@ -21,6 +21,17 @@ genPrelude = sequence_ [
   emitFunc "",
   emitFunc "; Array type for lists/tuples: { i64 size, %Value* elements }",
   emitFunc "%Array = type { i64, %Value* }",
+  emitFunc "",
+  emitFunc "; C ABI helper functions",
+  emitFunc "define %Value @box_int(i64 %val) {",
+  emitFunc "  %boxed = insertvalue %Value { i64 0, i64 undef }, i64 %val, 1",
+  emitFunc "  ret %Value %boxed",
+  emitFunc "}",
+  emitFunc "",
+  emitFunc "define i64 @unbox_int(%Value %val) {",
+  emitFunc "  %raw = extractvalue %Value %val, 1",
+  emitFunc "  ret i64 %raw",
+  emitFunc "}",
   emitFunc ""
   ]
 

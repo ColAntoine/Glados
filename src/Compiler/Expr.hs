@@ -292,7 +292,10 @@ compileKnownFunctionCall name args = do
     return ptr
   result <- freshReg
   let argList = intercalate ", " (map ("%Value* " ++) argPtrs)
-  emit $ "  " ++ result ++ " = call %Value @" ++ name ++ "(" ++ argList ++ ")"
+  -- In CABI mode, call the internal function (prefixed with __flux_)
+  cabiMode <- gets csCABIMode
+  let funcName = if cabiMode then "__flux_" ++ name else name
+  emit $ "  " ++ result ++ " = call %Value @" ++ funcName ++ "(" ++ argList ++ ")"
   return result
 
 compileUnknownFunctionCall :: String -> [Expr] -> Compiler String
