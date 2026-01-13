@@ -6,7 +6,7 @@ at(list, 0) |> print
 at(list, 2) |> print
 at(list, 4) |> print
 
-print("=== String indexing ===")
+print("=== String indexing ===\n")
 let str = "Flux"
 at(str, 0) |> print
 at(str, 1) |> print

@@ -47,7 +47,6 @@ emptyEnv = []
 initialEnv :: IO Env
 initialEnv = pure
   [ ("print", VPrim primPrint)
-  , ("map", VPrim primMap)
   -- String/List operations
   , ("len", VPrim primLen)
   , ("head", VPrim primHead)
@@ -63,8 +62,6 @@ initialEnv = pure
   , ("substring", VPrim primSubstring)
   , ("toUpper", VPrim primToUpper)
   , ("toLower", VPrim primToLower)
-  , ("split", VPrim primSplit)
-  , ("join", VPrim primJoin)
   -- Math operations
   , ("abs", VPrim primAbs)
   , ("min", VPrim primMin)
@@ -77,9 +74,6 @@ initialEnv = pure
   , ("isList", VPrim primIsList)
   -- List operations
   , ("reverse", VPrim primReverse)
-  , ("filter", VPrim primFilter)
-  , ("fold", VPrim primFold)
-  , ("range", VPrim primRange)
   ]
 
 primPrint :: [Value] -> IO (Either String Value)
@@ -92,34 +86,6 @@ primPrint [v] = do
     _ -> putStrLn output
   pure (Right v)
 primPrint _ = pure (Left "arity mismatch")
-
-primMap :: [Value] -> IO (Either String Value)
--- support both orders: map(fn, list) and map(list, fn) to match pipeline desugaring
-primMap [VClosure params body closEnv, VList vals] = primMap [VList vals, VClosure params body closEnv]
-primMap [VList vals, VClosure params body closEnv] = case params of
-  [p] -> do
-    results <- forM vals $ \v -> do
-      -- apply closure to v
-      let callEnv = (p, v) : closEnv
-      e <- evalExpr callEnv body
-      case e of
-        Left err -> pure (Left err)
-        Right val -> pure (Right val)
-    case sequence results of
-      Left err -> pure (Left err)
-      Right vs -> pure (Right (VList vs))
-  _ -> pure (Left "arity mismatch")
-primMap [VPrim f, VList vals] = do
-  results <- forM vals $ \v -> do
-    r <- f [v]
-    case r of
-      Left err -> pure (Left err)
-      Right val -> pure (Right val)
-  case sequence results of
-    Left err -> pure (Left err)
-    Right vs -> pure (Right (VList vs))
-primMap [VList vals, VPrim f] = primMap [VPrim f, VList vals]
-primMap _ = pure (Left "type error")
 
 -- String/List length
 primLen :: [Value] -> IO (Either String Value)
@@ -214,42 +180,6 @@ primToLower :: [Value] -> IO (Either String Value)
 primToLower [VString s] = pure (Right (VString (map (\c -> if c >= 'A' && c <= 'Z' then toEnum (fromEnum c + 32) else c) s)))
 primToLower _ = pure (Left "toLower: expected string")
 
--- Split string by delimiter
-primSplit :: [Value] -> IO (Either String Value)
-primSplit [VString s, VString delim] = 
-  let parts = splitOn delim s
-  in pure (Right (VList (map VString parts)))
-  where
-    splitOn "" str = [str]
-    splitOn delim "" = [""]
-    splitOn delim str =
-      case findSubstring delim str of
-        Nothing -> [str]
-        Just idx -> take idx str : splitOn delim (drop (idx + length delim) str)
-    findSubstring needle haystack = findAt 0 haystack
-      where
-        findAt _ [] = Nothing
-        findAt idx str@(_:rest) =
-          if take (length needle) str == needle
-            then Just idx
-            else findAt (idx + 1) rest
-primSplit _ = pure (Left "split: expected (string, delimiter)")
-
--- Join list of strings
-primJoin :: [Value] -> IO (Either String Value)
-primJoin [VList strs, VString sep] = do
-  let convert (VString s) = Just s
-      convert _ = Nothing
-      strList = mapM convert strs
-  case strList of
-    Just ss -> pure (Right (VString (joinWith sep ss)))
-    Nothing -> pure (Left "join: list must contain only strings")
-  where
-    joinWith _ [] = ""
-    joinWith _ [x] = x
-    joinWith sep (x:xs) = x ++ sep ++ joinWith sep xs
-primJoin _ = pure (Left "join: expected (list, separator)")
-
 -- Absolute value
 primAbs :: [Value] -> IO (Either String Value)
 primAbs [VInt n] = pure (Right (VInt (abs n)))
@@ -300,25 +230,6 @@ primReverse [VList xs] = pure (Right (VList (reverse xs)))
 primReverse [VString s] = pure (Right (VString (reverse s)))
 primReverse _ = pure (Left "reverse: expected list or string")
 
--- Filter list based on predicate
-primFilter :: [Value] -> IO (Either String Value)
-primFilter [VClosure [param] body closEnv, VList vals] = do
-  results <- forM vals $ \v -> do
-    let callEnv = (param, v) : closEnv
-    result <- evalExpr callEnv body
-    case result of
-      Left err -> pure (Left err)
-      Right (VBool True) -> pure (Right (Just v))
-      Right (VBool False) -> pure (Right Nothing)
-      Right _ -> pure (Left "filter: predicate must return boolean")
-  case sequence results of
-    Left err -> pure (Left err)
-    Right maybes -> pure (Right (VList (catMaybes maybes)))
-  where
-    catMaybes = foldr (\m acc -> case m of Just x -> x:acc; Nothing -> acc) []
-primFilter [VList vals, VClosure params body closEnv] = primFilter [VClosure params body closEnv, VList vals]
-primFilter _ = pure (Left "filter: expected (function, list)")
-
 -- Fold (reduce) a list
 primFold :: [Value] -> IO (Either String Value)
 primFold [VClosure [p1, p2] body closEnv, acc, VList vals] = do
@@ -337,13 +248,7 @@ primFold [VClosure [p1, p2] body closEnv, acc, VList vals] = do
       foldM f result xs
 primFold _ = pure (Left "fold: expected (function, initial, list)")
 
--- Create a range of numbers
-primRange :: [Value] -> IO (Either String Value)
-primRange [VInt start, VInt end] = 
-  let range = [start..end-1]
-  in pure (Right (VList (map VInt range)))
-primRange [VInt end] = primRange [VInt 0, VInt end]
-primRange _ = pure (Left "range: expected (start, end) or (end)")
+
 
 -- Evaluate an expression
 evalExpr :: Env -> Expr -> IO (Either String Value)
