@@ -48,6 +48,38 @@ initialEnv :: IO Env
 initialEnv = pure
   [ ("print", VPrim primPrint)
   , ("map", VPrim primMap)
+  -- String/List operations
+  , ("len", VPrim primLen)
+  , ("head", VPrim primHead)
+  , ("tail", VPrim primTail)
+  , ("at", VPrim primAt)
+  , ("concat", VPrim primConcat)
+  -- File I/O
+  , ("readFile", VPrim primReadFile)
+  , ("writeFile", VPrim primWriteFile)
+  , ("appendFile", VPrim primAppendFile)
+  -- String operations
+  , ("charAt", VPrim primCharAt)
+  , ("substring", VPrim primSubstring)
+  , ("toUpper", VPrim primToUpper)
+  , ("toLower", VPrim primToLower)
+  , ("split", VPrim primSplit)
+  , ("join", VPrim primJoin)
+  -- Math operations
+  , ("abs", VPrim primAbs)
+  , ("min", VPrim primMin)
+  , ("max", VPrim primMax)
+  , ("pow", VPrim primPow)
+  -- Type checking
+  , ("isInt", VPrim primIsInt)
+  , ("isBool", VPrim primIsBool)
+  , ("isString", VPrim primIsString)
+  , ("isList", VPrim primIsList)
+  -- List operations
+  , ("reverse", VPrim primReverse)
+  , ("filter", VPrim primFilter)
+  , ("fold", VPrim primFold)
+  , ("range", VPrim primRange)
   ]
 
 primPrint :: [Value] -> IO (Either String Value)
@@ -183,6 +215,32 @@ evalExpr env (ESeq exprs) = do
     Left err -> pure (Left err)
     Right [] -> pure (Right (VList []))
     Right vals -> pure (Right (last vals))
+evalExpr env (EAssign var op expr) = do
+  -- This shouldn't actually be reached since we desugar in parser
+  -- But handle it just in case
+  rv <- evalExpr env expr
+  case rv of
+    Left err -> pure (Left err)
+    Right val -> do
+      case lookup var env of
+        Nothing -> pure (Left ("variable " ++ var ++ " not found"))
+        Just oldVal -> do
+          let newVal = case (op, oldVal, val) of
+                ("+", VInt a, VInt b) -> Right (VInt (a + b))
+                ("-", VInt a, VInt b) -> Right (VInt (a - b))
+                ("*", VInt a, VInt b) -> Right (VInt (a * b))
+                ("/", VInt a, VInt b) -> if b == 0 then Left "division by zero" else Right (VInt (a `div` b))
+                ("%", VInt a, VInt b) -> if b == 0 then Left "division by zero" else Right (VInt (a `mod` b))
+                _ -> Left "type error in assignment"
+          case newVal of
+            Left err -> pure (Left err)
+            Right v -> pure (Right v)
+evalExpr env (EIncDec var isInc) = do
+  -- This shouldn't actually be reached since we desugar in parser
+  case lookup var env of
+    Nothing -> pure (Left ("variable " ++ var ++ " not found"))
+    Just (VInt n) -> pure (Right (VInt (if isInc then n + 1 else n - 1)))
+    _ -> pure (Left "type error: increment/decrement requires integer")
 
 eqValue :: Value -> Value -> Bool
 eqValue (VInt a) (VInt b) = a == b

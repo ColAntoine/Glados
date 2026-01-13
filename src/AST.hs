@@ -45,4 +45,6 @@ data Expr
     | EBlock [TopLevel] (Maybe Expr)
     | ERet Expr
     | ESeq [Expr]  -- Sequence of expressions
+    | EAssign String String Expr  -- Variable assignment with operator (+=, -=, etc.)
+    | EIncDec String Bool  -- Increment/Decrement (varname, isIncrement)
     deriving (Eq, Show)

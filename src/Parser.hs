@@ -52,7 +52,7 @@ pProgram :: Parser Program
 pProgram = sc *> many pTopLevel <* eof
 
 pTopLevel :: Parser TopLevel
-pTopLevel = choice [pImport, pFn, pLet, TLExpr <$> pExpr]
+pTopLevel = choice [pImport, pFn, pLetOrAssign, TLExpr <$> pExpr]
 
 pFn :: Parser TopLevel
 pFn = do
@@ -74,13 +74,34 @@ pFn = do
             _ <- symbol "}"
             return $ TLProc name params statements
 
-pLet :: Parser TopLevel
-pLet = do
+pLetOrAssign :: Parser TopLevel
+pLetOrAssign = do
     reserved "let"
     name <- identifier
-    _ <- symbol "="
-    expr <- pExpr
-    return $ TLLet name expr
+    -- Check for assignment operators (+=, -=, etc.) before regular =
+    op <- optional $ choice
+        [ try (string "+=" >> sc >> return "+")
+        , try (string "-=" >> sc >> return "-")
+        , try (string "*=" >> sc >> return "*")
+        , try (string "/=" >> sc >> return "/")
+        , try (string "%=" >> sc >> return "%")
+        ]
+    case op of
+        Nothing -> do
+            _ <- symbol "="
+            expr <- pExpr
+            return $ TLLet name expr
+        Just opStr -> do
+            -- Desugar: let x += y  =>  let x = x + y
+            expr <- pExpr
+            let desugared = case opStr of
+                    "+" -> EBinary Add (EVar name) expr
+                    "-" -> EBinary Sub (EVar name) expr
+                    "*" -> EBinary Mul (EVar name) expr
+                    "/" -> EBinary Div (EVar name) expr
+                    "%" -> EBinary Mod (EVar name) expr
+                    _ -> expr
+            return $ TLLet name desugared
 
 pImport :: Parser TopLevel
 pImport = do
@@ -101,7 +122,7 @@ parseFilePath = do
 pBlock = do
     _ <- symbol "{"
     -- Parse top-level forms (fn/let/expr), but don't consume final expression as TLExpr
-    tops <- many (try (pFn <|> pLet))
+    tops <- many (try (pFn <|> pLetOrAssign))
     -- Now get optional final expression
     mexpr <- optional pExpr
     _ <- symbol "}"
@@ -116,6 +137,7 @@ pTerm = choice
     , EBool True <$ reserved "true"
     , EBool False <$ reserved "false"
     , pString
+    , try pIncDec  -- try increment/decrement before call
     , try pCall
     , pIf
     , pList
@@ -125,6 +147,21 @@ pTerm = choice
     , EVar <$> identifier
     , parens pExpr
     ]
+
+-- Parse increment (x++) or decrement (x--)
+pIncDec :: Parser Expr
+pIncDec = do
+    name <- identifier
+    op <- choice
+        [ string "++" >> sc >> return True   -- True for increment
+        , string "--" >> sc >> return False  -- False for decrement
+        ]
+    -- Desugar: x++  =>  let x = x + 1, x--  =>  let x = x - 1
+    let desugared = if op
+        then EBinary Add (EVar name) (EInt 1)   -- x++
+        else EBinary Sub (EVar name) (EInt 1)   -- x--
+    -- Return as a let binding wrapped in a block
+    return $ EBlock [TLLet name desugared] (Just (EVar name))
 
 pString :: Parser Expr
 pString = do
@@ -234,4 +271,6 @@ desugarPipes e = case e of
     ETuple xs -> ETuple (map desugarPipes xs)
     ERet ex -> ERet (desugarPipes ex)
     ESeq exprs -> ESeq (map desugarPipes exprs)
+    EAssign var op expr -> EAssign var op (desugarPipes expr)
+    EIncDec var isInc -> EIncDec var isInc
     other -> other
