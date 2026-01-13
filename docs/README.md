@@ -1,5 +1,7 @@
 **FLUX — Build & AST**
 
+Flux is a **functional programming language** that emphasizes recursion over loops, first-class functions, and pipeline-style composition. It features closures, list processing, and a clean syntax for building functional programs.
+
 - **Build:**: To build the Flux interpreter from the repository root run:
 
   ```bash
@@ -34,9 +36,17 @@
 
   This is extremely useful for understanding how Flux code maps to AST structures when designing a bytecode compiler. See `AST.md` for detailed AST documentation with examples.
 
+**Documentation**
+- **[BNF.md](BNF.md)** - Formal BNF grammar specification for the Flux language
+- **[SYNTAX.md](SYNTAX.md)** - Detailed syntax guide with examples
+- **[AST.md](AST.md)** - Abstract Syntax Tree structure and examples
+- **[VM_SPEC.md](VM_SPEC.md)** - Virtual machine specification for bytecode compilation
+
 **Quick Notes**
+- Flux is a **functional language** - use **recursion** instead of loops for iteration
 - Pipeline operator `|>` is desugared by the parser to a call form: `a |> b` becomes `b(a)` (or `b(a, ...)` if `b` is a call).
 - Lists are first-class (`[1,2,3]`) and lambdas/closures capture their lexical environment.
+- First-class functions and closures enable powerful functional programming patterns
 
 **AST Overview (for bytecode design)**
 
@@ -68,6 +78,12 @@ The Flux AST is defined in Haskell (see `FLUX/src/AST.hs`). Below are the import
   - `VList [Value]` → list/array tag
   - `VClosure [String] Expr Env` → closure: code pointer + list of parameter names + captured environment (closed-over values)
   - `VPrim ([Value] -> IO (Either String Value))` → builtin/native function (for Java backend, implement as host-call)
+
+**Recursion and Functional Programming**
+- Flux uses **recursion** as the primary iteration mechanism (no `for` or `while` loops)
+- Tail recursion optimization can help avoid stack overflow for recursive functions
+- Common patterns: accumulator pattern, list recursion, mutual recursion
+- See [SYNTAX.md](SYNTAX.md#4-recursion-iteration-in-functional-style) for recursion examples
 
 When compiling to bytecode, closures must capture the environment (either by storing pointers/indexes to captured variables, or by copying a small environment array). Each closure value on the heap should include an entry describing captured variables.
 

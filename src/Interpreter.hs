@@ -47,7 +47,33 @@ emptyEnv = []
 initialEnv :: IO Env
 initialEnv = pure
   [ ("print", VPrim primPrint)
-  , ("map", VPrim primMap)
+  -- String/List operations
+  , ("len", VPrim primLen)
+  , ("head", VPrim primHead)
+  , ("tail", VPrim primTail)
+  , ("at", VPrim primAt)
+  , ("concat", VPrim primConcat)
+  -- File I/O
+  , ("readFile", VPrim primReadFile)
+  , ("writeFile", VPrim primWriteFile)
+  , ("appendFile", VPrim primAppendFile)
+  -- String operations
+  , ("charAt", VPrim primCharAt)
+  , ("substring", VPrim primSubstring)
+  , ("toUpper", VPrim primToUpper)
+  , ("toLower", VPrim primToLower)
+  -- Math operations
+  , ("abs", VPrim primAbs)
+  , ("min", VPrim primMin)
+  , ("max", VPrim primMax)
+  , ("pow", VPrim primPow)
+  -- Type checking
+  , ("isInt", VPrim primIsInt)
+  , ("isBool", VPrim primIsBool)
+  , ("isString", VPrim primIsString)
+  , ("isList", VPrim primIsList)
+  -- List operations
+  , ("reverse", VPrim primReverse)
   ]
 
 primPrint :: [Value] -> IO (Either String Value)
@@ -61,33 +87,168 @@ primPrint [v] = do
   pure (Right v)
 primPrint _ = pure (Left "arity mismatch")
 
-primMap :: [Value] -> IO (Either String Value)
--- support both orders: map(fn, list) and map(list, fn) to match pipeline desugaring
-primMap [VClosure params body closEnv, VList vals] = primMap [VList vals, VClosure params body closEnv]
-primMap [VList vals, VClosure params body closEnv] = case params of
-  [p] -> do
-    results <- forM vals $ \v -> do
-      -- apply closure to v
-      let callEnv = (p, v) : closEnv
-      e <- evalExpr callEnv body
-      case e of
-        Left err -> pure (Left err)
-        Right val -> pure (Right val)
-    case sequence results of
-      Left err -> pure (Left err)
-      Right vs -> pure (Right (VList vs))
-  _ -> pure (Left "arity mismatch")
-primMap [VPrim f, VList vals] = do
-  results <- forM vals $ \v -> do
-    r <- f [v]
-    case r of
+-- String/List length
+primLen :: [Value] -> IO (Either String Value)
+primLen [VString s] = pure (Right (VInt (fromIntegral (length s))))
+primLen [VList xs] = pure (Right (VInt (fromIntegral (length xs))))
+primLen _ = pure (Left "len: expected string or list")
+
+-- List/String head (first element)
+primHead :: [Value] -> IO (Either String Value)
+primHead [VList (x:_)] = pure (Right x)
+primHead [VList []] = pure (Left "head: empty list")
+primHead [VString (c:_)] = pure (Right (VString [c]))
+primHead [VString ""] = pure (Left "head: empty string")
+primHead _ = pure (Left "head: expected list or string")
+
+-- List/String tail (rest of elements)
+primTail :: [Value] -> IO (Either String Value)
+primTail [VList (_:xs)] = pure (Right (VList xs))
+primTail [VList []] = pure (Left "tail: empty list")
+primTail [VString (_:cs)] = pure (Right (VString cs))
+primTail [VString ""] = pure (Left "tail: empty string")
+primTail _ = pure (Left "tail: expected list or string")
+
+-- Get element at index
+primAt :: [Value] -> IO (Either String Value)
+primAt [VList xs, VInt i] = 
+  if i >= 0 && fromIntegral i < length xs
+    then pure (Right (xs !! fromIntegral i))
+    else pure (Left "at: index out of bounds")
+primAt [VString s, VInt i] = 
+  if i >= 0 && fromIntegral i < length s
+    then pure (Right (VString [s !! fromIntegral i]))
+    else pure (Left "at: index out of bounds")
+primAt _ = pure (Left "at: expected (list, int) or (string, int)")
+
+-- Concatenate strings or lists
+primConcat :: [Value] -> IO (Either String Value)
+primConcat [VString a, VString b] = pure (Right (VString (a ++ b)))
+primConcat [VList a, VList b] = pure (Right (VList (a ++ b)))
+primConcat _ = pure (Left "concat: expected two strings or two lists")
+
+-- Read file contents
+primReadFile :: [Value] -> IO (Either String Value)
+primReadFile [VString path] = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      content <- readFile path
+      pure (Right (VString content))
+    else pure (Left ("readFile: file not found: " ++ path))
+primReadFile _ = pure (Left "readFile: expected string path")
+
+-- Write to file
+primWriteFile :: [Value] -> IO (Either String Value)
+primWriteFile [VString path, VString content] = do
+  writeFile path content
+  pure (Right (VString content))
+primWriteFile _ = pure (Left "writeFile: expected (path, content)")
+
+-- Append to file
+primAppendFile :: [Value] -> IO (Either String Value)
+primAppendFile [VString path, VString content] = do
+  appendFile path content
+  pure (Right (VString content))
+primAppendFile _ = pure (Left "appendFile: expected (path, content)")
+
+-- Get character at index
+primCharAt :: [Value] -> IO (Either String Value)
+primCharAt [VString s, VInt i] = 
+  if i >= 0 && fromIntegral i < length s
+    then pure (Right (VString [s !! fromIntegral i]))
+    else pure (Left "charAt: index out of bounds")
+primCharAt _ = pure (Left "charAt: expected (string, int)")
+
+-- Get substring
+primSubstring :: [Value] -> IO (Either String Value)
+primSubstring [VString s, VInt start, VInt end] = 
+  let s' = fromIntegral start
+      e' = fromIntegral end
+  in if s' >= 0 && e' >= s' && e' <= length s
+    then pure (Right (VString (take (e' - s') (drop s' s))))
+    else pure (Left "substring: invalid range")
+primSubstring _ = pure (Left "substring: expected (string, start, end)")
+
+-- Convert to uppercase
+primToUpper :: [Value] -> IO (Either String Value)
+primToUpper [VString s] = pure (Right (VString (map (\c -> if c >= 'a' && c <= 'z' then toEnum (fromEnum c - 32) else c) s)))
+primToUpper _ = pure (Left "toUpper: expected string")
+
+-- Convert to lowercase  
+primToLower :: [Value] -> IO (Either String Value)
+primToLower [VString s] = pure (Right (VString (map (\c -> if c >= 'A' && c <= 'Z' then toEnum (fromEnum c + 32) else c) s)))
+primToLower _ = pure (Left "toLower: expected string")
+
+-- Absolute value
+primAbs :: [Value] -> IO (Either String Value)
+primAbs [VInt n] = pure (Right (VInt (abs n)))
+primAbs _ = pure (Left "abs: expected int")
+
+-- Minimum of two values
+primMin :: [Value] -> IO (Either String Value)
+primMin [VInt a, VInt b] = pure (Right (VInt (min a b)))
+primMin _ = pure (Left "min: expected two ints")
+
+-- Maximum of two values
+primMax :: [Value] -> IO (Either String Value)
+primMax [VInt a, VInt b] = pure (Right (VInt (max a b)))
+primMax _ = pure (Left "max: expected two ints")
+
+-- Power (exponentiation)
+primPow :: [Value] -> IO (Either String Value)
+primPow [VInt base, VInt exp] = 
+  if exp >= 0
+    then pure (Right (VInt (base ^ exp)))
+    else pure (Left "pow: negative exponent not supported")
+primPow _ = pure (Left "pow: expected two ints")
+
+-- Type checking functions
+primIsInt :: [Value] -> IO (Either String Value)
+primIsInt [VInt _] = pure (Right (VBool True))
+primIsInt [_] = pure (Right (VBool False))
+primIsInt _ = pure (Left "isInt: expected one argument")
+
+primIsBool :: [Value] -> IO (Either String Value)
+primIsBool [VBool _] = pure (Right (VBool True))
+primIsBool [_] = pure (Right (VBool False))
+primIsBool _ = pure (Left "isBool: expected one argument")
+
+primIsString :: [Value] -> IO (Either String Value)
+primIsString [VString _] = pure (Right (VBool True))
+primIsString [_] = pure (Right (VBool False))
+primIsString _ = pure (Left "isString: expected one argument")
+
+primIsList :: [Value] -> IO (Either String Value)
+primIsList [VList _] = pure (Right (VBool True))
+primIsList [_] = pure (Right (VBool False))
+primIsList _ = pure (Left "isList: expected one argument")
+
+-- Reverse a list or string
+primReverse :: [Value] -> IO (Either String Value)
+primReverse [VList xs] = pure (Right (VList (reverse xs)))
+primReverse [VString s] = pure (Right (VString (reverse s)))
+primReverse _ = pure (Left "reverse: expected list or string")
+
+-- Fold (reduce) a list
+primFold :: [Value] -> IO (Either String Value)
+primFold [VClosure [p1, p2] body closEnv, acc, VList vals] = do
+  foldM (\a v -> do
+    let callEnv = (p1, a) : (p2, v) : closEnv
+    result <- evalExpr callEnv body
+    case result of
       Left err -> pure (Left err)
       Right val -> pure (Right val)
-  case sequence results of
-    Left err -> pure (Left err)
-    Right vs -> pure (Right (VList vs))
-primMap [VList vals, VPrim f] = primMap [VPrim f, VList vals]
-primMap _ = pure (Left "type error")
+    ) (Right acc) vals
+  where
+    foldM _ (Left err) _ = pure (Left err)
+    foldM _ acc [] = pure acc
+    foldM f (Right acc) (x:xs) = do
+      result <- f acc x
+      foldM f result xs
+primFold _ = pure (Left "fold: expected (function, initial, list)")
+
+
 
 -- Evaluate an expression
 evalExpr :: Env -> Expr -> IO (Either String Value)
@@ -183,6 +344,32 @@ evalExpr env (ESeq exprs) = do
     Left err -> pure (Left err)
     Right [] -> pure (Right (VList []))
     Right vals -> pure (Right (last vals))
+evalExpr env (EAssign var op expr) = do
+  -- This shouldn't actually be reached since we desugar in parser
+  -- But handle it just in case
+  rv <- evalExpr env expr
+  case rv of
+    Left err -> pure (Left err)
+    Right val -> do
+      case lookup var env of
+        Nothing -> pure (Left ("variable " ++ var ++ " not found"))
+        Just oldVal -> do
+          let newVal = case (op, oldVal, val) of
+                ("+", VInt a, VInt b) -> Right (VInt (a + b))
+                ("-", VInt a, VInt b) -> Right (VInt (a - b))
+                ("*", VInt a, VInt b) -> Right (VInt (a * b))
+                ("/", VInt a, VInt b) -> if b == 0 then Left "division by zero" else Right (VInt (a `div` b))
+                ("%", VInt a, VInt b) -> if b == 0 then Left "division by zero" else Right (VInt (a `mod` b))
+                _ -> Left "type error in assignment"
+          case newVal of
+            Left err -> pure (Left err)
+            Right v -> pure (Right v)
+evalExpr env (EIncDec var isInc) = do
+  -- This shouldn't actually be reached since we desugar in parser
+  case lookup var env of
+    Nothing -> pure (Left ("variable " ++ var ++ " not found"))
+    Just (VInt n) -> pure (Right (VInt (if isInc then n + 1 else n - 1)))
+    _ -> pure (Left "type error: increment/decrement requires integer")
 
 eqValue :: Value -> Value -> Bool
 eqValue (VInt a) (VInt b) = a == b

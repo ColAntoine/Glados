@@ -196,8 +196,13 @@ findCallsInTopLevel _ (TLImport _ _) = []
 
 -- | Check if function is a builtin
 isBuiltin :: String -> Bool
-isBuiltin "print" = True
-isBuiltin _ = False
+isBuiltin name = name `elem` builtins
+  where
+    builtins = ["print", "len", "concat", "substring", "charAt",
+                "toUpper", "toLower", "abs", "min", "max", "pow",
+                "isInt", "isBool", "isString", "isList",
+                "readFile", "writeFile", "appendFile",
+                "head", "tail", "at", "reverse"]
 
 -- | Compile multiple files
 runCompilerMulti :: [FilePath] -> FilePath -> Bool -> Bool -> Bool -> IO ()
