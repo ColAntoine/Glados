@@ -32,7 +32,7 @@ fn Multiplication(Param1, Param2) = Param1 * Param2
 (8, 10) |> Multiplication |> print
 ```
 
-Each line is a new instruction like Python but not Identation base. For instance Condition or Loop Condition it will be more like C++ with brackets and also condition is without the `()`:
+Each line is a new instruction like Python but not indentation based. Conditions use curly brackets (like C++) but without parentheses around the condition:
 
 ```
 //example with string
@@ -155,98 +155,116 @@ fn greet(name) = {
 }
 ```
 
-### 4. Loop Constructs
+### 4. Recursion (Iteration in Functional Style)
 
-**While loop (with mutable variable reassignment):**
-```
-fn countDown(n) {
-    let mut i = n
-    while i > 0 {
-        print(i)
-        i = i - 1
-    }
-}
-```
+Flux is a functional language and uses **recursion** instead of loops. Recursion is the primary mechanism for iteration and repetitive operations.
 
-**Alternative while syntax (without `mut` keyword, implicit mutability inside loops):**
-```
-fn sumToN(n) = {
-    let sum = 0
-    let i = 1
-    while i <= n {
-        sum = sum + i
-        i = i + 1
-    }
-    RET sum
-}
-```
-
-**For loop (range-based with `..` operator):**
-```
-fn printRange(start, end) {
-    for i in start..end {
-        print(i)
+**Basic recursion - Countdown:**
+```flux
+fn countDown(n) = {
+    if n > 0 {
+        print(n)
+        countDown(n - 1)
+    } else {
+        0  // base case
     }
 }
 
-// Or inclusive range with `..=`
-fn printRangeInclusive(start, end) {
-    for i in start..=end {
-        print(i)
-    }
-}
+countDown(5)  // prints 5, 4, 3, 2, 1
 ```
 
-**For loop with step:**
-```
-fn printEvens(start, end) {
-    for i in start..end step 2 {
-        print(i)
-    }
-}
-```
+**Accumulator pattern - Sum to N:**
+```flux
+fn sumToN(n) = sumHelper(n, 0, 1)
 
-**List iteration:**
-```
-fn printAll(items) {
-    for item in items {
-        print(item)
+fn sumHelper(n, sum, i) = {
+    if i <= n {
+        sumHelper(n, sum + i, i + 1)
+    } else {
+        sum
     }
 }
 
-// With index
-fn printWithIndex(items) {
-    for (i, item) in enumerate(items) {
-        print(i)
-        print(item)
-    }
-}
+sumToN(10) |> print  // prints 55
 ```
 
-**Loop control:**
+**Recursive factorial:**
+```flux
+fn fact(n) = {
+    if n <= 1 {
+        1
+    } else {
+        n * fact(n - 1)
+    }
+}
+
+fact(10) |> print  // prints 3628800
 ```
-fn findFirst(items, target) = {
-    for item in items {
-        if item == target {
-            RET item  // early return from function
+
+**Recursive Fibonacci:**
+```flux
+fn fib(n) = {
+    if n <= 1 {
+        n
+    } else {
+        fib(n - 1) + fib(n - 2)
+    }
+}
+
+fib(10) |> print  // prints 55
+```
+
+**List recursion - Processing lists:**
+```flux
+fn sumList(list) = {
+    if len(list) == 0 {
+        0
+    } else {
+        head(list) + sumList(tail(list))
+    }
+}
+
+fn printList(list, index) = {
+    if index < len(list) {
+        print(at(list, index))
+        printList(list, index + 1)
+    } else {
+        0
+    }
+}
+
+printList([1, 2, 3, 4, 5], 0)
+```
+
+**Finding in a list recursively:**
+```flux
+fn findInList(list, target, index) = {
+    if index >= len(list) {
+        -1  // not found
+    } else {
+        if at(list, index) == target {
+            index
+        } else {
+            findInList(list, target, index + 1)
         }
     }
-    RET -1  // not found
 }
 
-// break and continue for loop control
-fn sumEvens(items) = {
-    let sum = 0
-    for item in items {
-        if item < 0 {
-            break  // exit loop entirely
-        }
-        if item % 2 != 0 {
-            continue  // skip to next iteration
-        }
-        sum = sum + item
+findInList([10, 20, 30], 20, 0) |> print  // prints 1
+```
+
+**Tail recursion optimization:**
+When a recursive call is the last operation in a function (tail position), it can be optimized by the compiler to avoid stack overflow:
+```flux
+// Tail-recursive factorial with accumulator
+fn factTail(n) = factHelper(n, 1)
+
+fn factHelper(n, acc) = {
+    if n <= 1 {
+        acc
+    } else {
+        factHelper(n - 1, n * acc)  // tail position
     }
-    RET sum
 }
 ```
 
@@ -311,3 +329,43 @@ Currently dynamically typed. For future:
 - Optional type annotations: `fn add(a: Int, b: Int) -> Int = a + b`
 - Type inference for most cases
 - Runtime type checks with clear error messages
+
+### 9. Syntactic Sugar (planned feature)
+
+Flux can support convenient shorthand operators that desugar to their expanded forms during parsing.
+
+**Assignment operators (planned):**
+- `x += y` → `x = x + y` (addition assignment)
+- `x -= y` → `x = x - y` (subtraction assignment)
+- `x *= y` → `x = x * y` (multiplication assignment)
+- `x /= y` → `x = x / y` (division assignment)
+- `x %= y` → `x = x % y` (modulo assignment)
+
+**Increment/Decrement (planned):**
+- `x++` → `x = x + 1` (increment)
+- `x--` → `x = x - 1` (decrement)
+
+**Example usage (when implemented):**
+```flux
+fn factorial(n, acc) = {
+    if n <= 1 {
+        acc
+    } else {
+        acc *= n  // Instead of: let acc = acc * n
+        factorial(n - 1, acc)
+    }
+}
+```
+
+**Current workaround:**
+Until these operators are implemented, use the expanded form:
+```flux
+fn factorial(n, acc) = {
+    if n <= 1 {
+        acc
+    } else {
+        let acc *= n  // Expanded form
+        factorial(n - 1, acc)
+    }
+}
+
