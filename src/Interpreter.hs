@@ -121,6 +121,230 @@ primMap [VPrim f, VList vals] = do
 primMap [VList vals, VPrim f] = primMap [VPrim f, VList vals]
 primMap _ = pure (Left "type error")
 
+-- String/List length
+primLen :: [Value] -> IO (Either String Value)
+primLen [VString s] = pure (Right (VInt (fromIntegral (length s))))
+primLen [VList xs] = pure (Right (VInt (fromIntegral (length xs))))
+primLen _ = pure (Left "len: expected string or list")
+
+-- List/String head (first element)
+primHead :: [Value] -> IO (Either String Value)
+primHead [VList (x:_)] = pure (Right x)
+primHead [VList []] = pure (Left "head: empty list")
+primHead [VString (c:_)] = pure (Right (VString [c]))
+primHead [VString ""] = pure (Left "head: empty string")
+primHead _ = pure (Left "head: expected list or string")
+
+-- List/String tail (rest of elements)
+primTail :: [Value] -> IO (Either String Value)
+primTail [VList (_:xs)] = pure (Right (VList xs))
+primTail [VList []] = pure (Left "tail: empty list")
+primTail [VString (_:cs)] = pure (Right (VString cs))
+primTail [VString ""] = pure (Left "tail: empty string")
+primTail _ = pure (Left "tail: expected list or string")
+
+-- Get element at index
+primAt :: [Value] -> IO (Either String Value)
+primAt [VList xs, VInt i] = 
+  if i >= 0 && fromIntegral i < length xs
+    then pure (Right (xs !! fromIntegral i))
+    else pure (Left "at: index out of bounds")
+primAt [VString s, VInt i] = 
+  if i >= 0 && fromIntegral i < length s
+    then pure (Right (VString [s !! fromIntegral i]))
+    else pure (Left "at: index out of bounds")
+primAt _ = pure (Left "at: expected (list, int) or (string, int)")
+
+-- Concatenate strings or lists
+primConcat :: [Value] -> IO (Either String Value)
+primConcat [VString a, VString b] = pure (Right (VString (a ++ b)))
+primConcat [VList a, VList b] = pure (Right (VList (a ++ b)))
+primConcat _ = pure (Left "concat: expected two strings or two lists")
+
+-- Read file contents
+primReadFile :: [Value] -> IO (Either String Value)
+primReadFile [VString path] = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      content <- readFile path
+      pure (Right (VString content))
+    else pure (Left ("readFile: file not found: " ++ path))
+primReadFile _ = pure (Left "readFile: expected string path")
+
+-- Write to file
+primWriteFile :: [Value] -> IO (Either String Value)
+primWriteFile [VString path, VString content] = do
+  writeFile path content
+  pure (Right (VString content))
+primWriteFile _ = pure (Left "writeFile: expected (path, content)")
+
+-- Append to file
+primAppendFile :: [Value] -> IO (Either String Value)
+primAppendFile [VString path, VString content] = do
+  appendFile path content
+  pure (Right (VString content))
+primAppendFile _ = pure (Left "appendFile: expected (path, content)")
+
+-- Get character at index
+primCharAt :: [Value] -> IO (Either String Value)
+primCharAt [VString s, VInt i] = 
+  if i >= 0 && fromIntegral i < length s
+    then pure (Right (VString [s !! fromIntegral i]))
+    else pure (Left "charAt: index out of bounds")
+primCharAt _ = pure (Left "charAt: expected (string, int)")
+
+-- Get substring
+primSubstring :: [Value] -> IO (Either String Value)
+primSubstring [VString s, VInt start, VInt end] = 
+  let s' = fromIntegral start
+      e' = fromIntegral end
+  in if s' >= 0 && e' >= s' && e' <= length s
+    then pure (Right (VString (take (e' - s') (drop s' s))))
+    else pure (Left "substring: invalid range")
+primSubstring _ = pure (Left "substring: expected (string, start, end)")
+
+-- Convert to uppercase
+primToUpper :: [Value] -> IO (Either String Value)
+primToUpper [VString s] = pure (Right (VString (map (\c -> if c >= 'a' && c <= 'z' then toEnum (fromEnum c - 32) else c) s)))
+primToUpper _ = pure (Left "toUpper: expected string")
+
+-- Convert to lowercase  
+primToLower :: [Value] -> IO (Either String Value)
+primToLower [VString s] = pure (Right (VString (map (\c -> if c >= 'A' && c <= 'Z' then toEnum (fromEnum c + 32) else c) s)))
+primToLower _ = pure (Left "toLower: expected string")
+
+-- Split string by delimiter
+primSplit :: [Value] -> IO (Either String Value)
+primSplit [VString s, VString delim] = 
+  let parts = splitOn delim s
+  in pure (Right (VList (map VString parts)))
+  where
+    splitOn "" str = [str]
+    splitOn delim "" = [""]
+    splitOn delim str =
+      case findSubstring delim str of
+        Nothing -> [str]
+        Just idx -> take idx str : splitOn delim (drop (idx + length delim) str)
+    findSubstring needle haystack = findAt 0 haystack
+      where
+        findAt _ [] = Nothing
+        findAt idx str@(_:rest) =
+          if take (length needle) str == needle
+            then Just idx
+            else findAt (idx + 1) rest
+primSplit _ = pure (Left "split: expected (string, delimiter)")
+
+-- Join list of strings
+primJoin :: [Value] -> IO (Either String Value)
+primJoin [VList strs, VString sep] = do
+  let convert (VString s) = Just s
+      convert _ = Nothing
+      strList = mapM convert strs
+  case strList of
+    Just ss -> pure (Right (VString (joinWith sep ss)))
+    Nothing -> pure (Left "join: list must contain only strings")
+  where
+    joinWith _ [] = ""
+    joinWith _ [x] = x
+    joinWith sep (x:xs) = x ++ sep ++ joinWith sep xs
+primJoin _ = pure (Left "join: expected (list, separator)")
+
+-- Absolute value
+primAbs :: [Value] -> IO (Either String Value)
+primAbs [VInt n] = pure (Right (VInt (abs n)))
+primAbs _ = pure (Left "abs: expected int")
+
+-- Minimum of two values
+primMin :: [Value] -> IO (Either String Value)
+primMin [VInt a, VInt b] = pure (Right (VInt (min a b)))
+primMin _ = pure (Left "min: expected two ints")
+
+-- Maximum of two values
+primMax :: [Value] -> IO (Either String Value)
+primMax [VInt a, VInt b] = pure (Right (VInt (max a b)))
+primMax _ = pure (Left "max: expected two ints")
+
+-- Power (exponentiation)
+primPow :: [Value] -> IO (Either String Value)
+primPow [VInt base, VInt exp] = 
+  if exp >= 0
+    then pure (Right (VInt (base ^ exp)))
+    else pure (Left "pow: negative exponent not supported")
+primPow _ = pure (Left "pow: expected two ints")
+
+-- Type checking functions
+primIsInt :: [Value] -> IO (Either String Value)
+primIsInt [VInt _] = pure (Right (VBool True))
+primIsInt [_] = pure (Right (VBool False))
+primIsInt _ = pure (Left "isInt: expected one argument")
+
+primIsBool :: [Value] -> IO (Either String Value)
+primIsBool [VBool _] = pure (Right (VBool True))
+primIsBool [_] = pure (Right (VBool False))
+primIsBool _ = pure (Left "isBool: expected one argument")
+
+primIsString :: [Value] -> IO (Either String Value)
+primIsString [VString _] = pure (Right (VBool True))
+primIsString [_] = pure (Right (VBool False))
+primIsString _ = pure (Left "isString: expected one argument")
+
+primIsList :: [Value] -> IO (Either String Value)
+primIsList [VList _] = pure (Right (VBool True))
+primIsList [_] = pure (Right (VBool False))
+primIsList _ = pure (Left "isList: expected one argument")
+
+-- Reverse a list or string
+primReverse :: [Value] -> IO (Either String Value)
+primReverse [VList xs] = pure (Right (VList (reverse xs)))
+primReverse [VString s] = pure (Right (VString (reverse s)))
+primReverse _ = pure (Left "reverse: expected list or string")
+
+-- Filter list based on predicate
+primFilter :: [Value] -> IO (Either String Value)
+primFilter [VClosure [param] body closEnv, VList vals] = do
+  results <- forM vals $ \v -> do
+    let callEnv = (param, v) : closEnv
+    result <- evalExpr callEnv body
+    case result of
+      Left err -> pure (Left err)
+      Right (VBool True) -> pure (Right (Just v))
+      Right (VBool False) -> pure (Right Nothing)
+      Right _ -> pure (Left "filter: predicate must return boolean")
+  case sequence results of
+    Left err -> pure (Left err)
+    Right maybes -> pure (Right (VList (catMaybes maybes)))
+  where
+    catMaybes = foldr (\m acc -> case m of Just x -> x:acc; Nothing -> acc) []
+primFilter [VList vals, VClosure params body closEnv] = primFilter [VClosure params body closEnv, VList vals]
+primFilter _ = pure (Left "filter: expected (function, list)")
+
+-- Fold (reduce) a list
+primFold :: [Value] -> IO (Either String Value)
+primFold [VClosure [p1, p2] body closEnv, acc, VList vals] = do
+  foldM (\a v -> do
+    let callEnv = (p1, a) : (p2, v) : closEnv
+    result <- evalExpr callEnv body
+    case result of
+      Left err -> pure (Left err)
+      Right val -> pure (Right val)
+    ) (Right acc) vals
+  where
+    foldM _ (Left err) _ = pure (Left err)
+    foldM _ acc [] = pure acc
+    foldM f (Right acc) (x:xs) = do
+      result <- f acc x
+      foldM f result xs
+primFold _ = pure (Left "fold: expected (function, initial, list)")
+
+-- Create a range of numbers
+primRange :: [Value] -> IO (Either String Value)
+primRange [VInt start, VInt end] = 
+  let range = [start..end-1]
+  in pure (Right (VList (map VInt range)))
+primRange [VInt end] = primRange [VInt 0, VInt end]
+primRange _ = pure (Left "range: expected (start, end) or (end)")
+
 -- Evaluate an expression
 evalExpr :: Env -> Expr -> IO (Either String Value)
 evalExpr env (EInt n) = pure (Right (VInt n))
