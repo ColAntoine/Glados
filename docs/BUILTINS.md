@@ -1,12 +1,12 @@
 # Flux Builtin Functions
 
-This document describes the builtin functions available in Flux and their support in different execution modes.
+This document describes the builtin functions available in Flux.
 
 ## Execution Modes
 
 Flux supports two execution modes:
 - **Interpreter Mode** (`-i`): Full support for all builtin functions
-- **Compiler Mode** (`-c`): Currently limited support (see below)
+- **Compiler Mode** (`-c`): All builtins now compile to native LLVM IR
 
 ## Builtin Functions
 
@@ -15,11 +15,7 @@ Flux supports two execution modes:
 #### Core Functions
 - **`print(value)`** - Print a value to stdout
   - Strings are printed as-is
-  - Other types get formatted and a newline added
-
-### ✅ Interpreter Only (Currently)
-
-The following functions work in interpreter mode but are not yet implemented in the compiler:
+  - Integers, booleans, and lists are formatted
 
 #### String/List Operations
 - **`len(str|list)`** - Get length of string or list
@@ -27,19 +23,17 @@ The following functions work in interpreter mode but are not yet implemented in 
 - **`tail(list|str)`** - Get all elements except first
 - **`at(list|str, index)`** - Get element at index
 - **`concat(str, str)` or `concat(list, list)`** - Concatenate two strings or two lists
+- **`reverse(list|str)`** - Reverse a list or string
 
 #### File I/O
 - **`readFile(path)`** - Read file contents as string
-- **`writeFile(path, content)`** - Write string to file
+- **`writeFile(path, content)`** - Write string to file (overwrites)
 - **`appendFile(path, content)`** - Append string to file
 
 #### String Operations
-- **`charAt(str, index)`** - Get character at index
-- **`substring(str, start, end)`** - Extract substring
-- **`toUpper(str)`** - Convert to uppercase
-- **`toLower(str)`** - Convert to lowercase
-- **`split(str, delimiter)`** - Split string into list
-- **`join(list, separator)`** - Join list of strings
+- **`substring(str, start, end)`** - Extract substring from start (inclusive) to end (exclusive)
+- **`toUpper(str)`** - Convert string to uppercase
+- **`toLower(str)`** - Convert string to lowercase
 
 #### Math Operations
 - **`abs(n)`** - Absolute value
@@ -48,23 +42,15 @@ The following functions work in interpreter mode but are not yet implemented in 
 - **`pow(base, exp)`** - Exponentiation (integer only)
 
 #### Type Checking
-- **`isInt(value)`** - Check if value is integer
-- **`isBool(value)`** - Check if value is boolean
-- **`isString(value)`** - Check if value is string
-- **`isList(value)`** - Check if value is list
-
-#### List Operations
-- **`reverse(list|str)`** - Reverse a list or string
-- **`filter(fn, list)`** - Filter list with predicate function
-- **`fold(fn, initial, list)`** - Reduce list with binary function
-- **`range(end)` or `range(start, end)`** - Generate list of integers
-- **`map(fn, list)`** - Map function over list (also works in compiler)
+- **`isInt(value)`** - Check if value is integer (returns boolean)
+- **`isBool(value)`** - Check if value is boolean (returns boolean)
+- **`isString(value)`** - Check if value is string (returns boolean)
+- **`isList(value)`** - Check if value is list (returns boolean)
 
 ## Usage Examples
 
 ### Interpreter Mode
 ```bash
-# All builtins work
 ./glados -i examples/builtin_demo.flux
 ./glados -i examples/builtin_file_io.flux
 ./glados -i examples/builtin_math.flux
@@ -72,51 +58,50 @@ The following functions work in interpreter mode but are not yet implemented in 
 
 ### Compiler Mode
 ```bash
-# Use basic features and print
-./glados -c examples/compiler_demo.flux
-./examples/compiler_demo
+# All builtins now work in compiler mode
+./glados -c examples/builtin_file_io.flux
+./builtin_file_io
+
+./glados -c examples/builtin_math.flux
+./builtin_math
+
+./glados -c examples/bsq.flux
+./bsq
 ```
 
 ## Example Files
 
-- `builtin_demo.flux` - Comprehensive demo of all builtins (interpreter only)
+- `builtin_demo.flux` - Comprehensive demo of various builtins
 - `builtin_file_io.flux` - File I/O operations with map.txt
 - `builtin_len.flux` - Length function examples
 - `builtin_head_tail.flux` - List head/tail operations
 - `builtin_at.flux` - Index access examples
 - `builtin_concat.flux` - String and list concatenation
-- `builtin_string_ops.flux` - String manipulation functions
-- `builtin_split_join.flux` - String splitting and joining
-- `builtin_math.flux` - Math operations
+- `builtin_string_ops.flux` - String manipulation functions (toUpper, toLower, substring)
+- `builtin_math.flux` - Math operations (abs, min, max, pow)
 - `builtin_type_check.flux` - Type checking functions
 - `builtin_reverse.flux` - Reverse lists and strings
-- `builtin_filter.flux` - Filter with predicates
-- `builtin_fold.flux` - Fold/reduce operations
-- `builtin_range.flux` - Range generation
-- `compiler_demo.flux` - Features that work with compiler
+- `bsq.flux` - Biggest Square algorithm using file I/O
 
-## Notes
+## Implementation Notes
 
-1. **Concat limitation**: `concat` only works with two strings or two lists. To concat a string with a number, convert the number first (not yet implemented) or use multiple print statements.
+1. **String Comparison**: String equality (`==`) uses `strcmp` to compare actual string content, not just pointers.
 
-2. **Compiler support**: The compiler currently has limited builtin support. A runtime library (`runtime/flux_runtime.c`) has been started but is not yet integrated into the compilation process.
+2. **Inline LLVM**: All builtins are implemented as inline LLVM IR generation - no external C runtime required.
 
-3. **Future work**: Full compiler support for all builtins requires:
-   - Declaring external C functions in LLVM IR
-   - Implementing builtin call code generation
-   - Linking the runtime library during compilation
-   - Or implementing builtins directly in LLVM IR
+3. **Type Safety**: Builtins handle both their expected types (e.g., `head` works on both strings and lists).
+
+4. **File I/O**: Uses standard C library functions (fopen, fread, fwrite, fclose) for file operations.
 
 ## Testing
 
 Run the test suite to verify builtin functions:
 ```bash
-# Interpreter tests
-./glados -i examples/builtin_len.flux
-./glados -i examples/builtin_math.flux
-./glados -i examples/builtin_filter.flux
+# Test all builtins
+stack test
 
-# Compiler tests
-./glados -c examples/compiler_demo.flux
-./examples/compiler_demo
+# Individual examples
+./glados -c examples/builtin_len.flux && ./builtin_len
+./glados -c examples/builtin_math.flux && ./builtin_math
+./glados -c examples/bsq.flux && ./bsq
 ```
