@@ -13,7 +13,7 @@ import Text.Megaparsec.Error (errorBundlePretty)
 import qualified Parser as P
 import Interpreter (runProgram, runProgramFromFile, Value(..))
 import Compiler (compileProgramToFile)
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPutStrLn, hPutStr, hFlush, hIsEOF, stderr, stdout, stdin)
 import System.Process (readProcessWithExitCode)
 import System.Directory (removeFile, doesFileExist)
 import System.FilePath (dropExtension, takeDirectory, (</>))
@@ -28,9 +28,12 @@ main = do
     case parseArgs args of
         Just (Interpret file) -> runInterpreter file
         Just (Compile files output keepLL readable cabi) -> runCompilerMulti files output keepLL readable cabi
+        Just Repl -> runRepl
         Nothing ->
             hPutStrLn stderr
-              "Usage: glados -i <file>                           (interpret)" >>
+              "Usage: glados                                     (interactive REPL)" >>
+            hPutStrLn stderr
+              "       glados -i <file>                           (interpret)" >>
             hPutStrLn stderr
               "       glados -c <files...> [-o out] [-ll] [-r] [-cabi]  (compile)" >>
             hPutStrLn stderr
@@ -41,11 +44,12 @@ main = do
               "  -cabi : generate C ABI compatible functions (no boxing)" >>
             exitWith (ExitFailure 84)
 
-data Mode = Interpret FilePath | Compile [FilePath] FilePath Bool Bool Bool  -- files, output, keepLL, readable, cabi
+data Mode = Interpret FilePath | Compile [FilePath] FilePath Bool Bool Bool | Repl  -- files, output, keepLL, readable, cabi
 
 parseArgs :: [String] -> Maybe Mode
+parseArgs [] = Just Repl  -- No arguments = REPL mode
 parseArgs ["-i", file] = Just (Interpret file)
-parseArgs args | "-c" `elem` args = 
+parseArgs args | "-c" `elem` args =
     let cPos = length $ takeWhile (/= "-c") args
         afterC = drop (cPos + 1) args
         (beforeO, rest) = break (== "-o") afterC
@@ -78,6 +82,70 @@ runInterpreter file = do
                       then "" else ".") >>
                     exitWith (ExitFailure 84)
                 Right () -> exitWith ExitSuccess
+
+runRepl :: IO ()
+runRepl = do
+    putStrLn "Flux REPL - Interactive Mode"
+    putStrLn "Type expressions or definitions, press Ctrl+D to exit"
+    putStrLn "Multi-line input: lines ending with { will continue on next line"
+    putStrLn ""
+    replLoop []
+  where
+    replLoop :: Program -> IO ()
+    replLoop env = readInput "" >>= processInput env
+    
+    -- Read input, handling multi-line constructs
+    readInput :: String -> IO String
+    readInput accumulated = do
+        let prompt = if null accumulated then "flux> " else "...   "
+        hPutStr stdout prompt
+        hFlush stdout
+        
+        -- Check for EOF (Ctrl+D)
+        eof <- hIsEOF stdin
+        if eof
+            then putStrLn "" >> exitWith ExitSuccess
+            else do
+                line <- getLine
+                let newInput = if null accumulated 
+                              then line 
+                              else accumulated ++ "\n" ++ line
+                
+                -- Check if we need more input (unbalanced braces)
+                if hasUnclosedBraces newInput
+                    then readInput newInput
+                    else return newInput
+    
+    -- Check if input has unclosed braces
+    hasUnclosedBraces :: String -> Bool
+    hasUnclosedBraces input = countBraces input /= 0
+      where
+        countBraces :: String -> Int
+        countBraces = foldl count 0
+          where
+            count n '{' = n + 1
+            count n '}' = n - 1
+            count n _ = n
+    
+    processInput :: Program -> String -> IO ()
+    processInput env input = do
+        -- Skip empty input
+        if null (filter (not . (`elem` " \t\n")) input)
+            then replLoop env
+            else do
+                case P.parseProgram input of
+                    Left err -> do
+                        putStrLn $ "Parse error: " ++ errorBundlePretty err
+                        replLoop env
+                    Right newDefs -> do
+                        let fullProg = env ++ newDefs
+                        result <- runProgram fullProg
+                        case result of
+                            Left err -> do
+                                putStrLn $ "Error: " ++ err
+                                replLoop env
+                            Right () -> do
+                                replLoop fullProg
 
 -- | Load and parse a single file
 loadFile :: FilePath -> IO (Either String Program)
@@ -164,7 +232,7 @@ findCallsInExpr bound (EBinary _ e1 e2) =
 findCallsInExpr bound (EUnary _ e) = findCallsInExpr bound e
 findCallsInExpr bound (EIf e1 e2 e3) =
   findCallsInExpr bound e1 ++ findCallsInExpr bound e2 ++ findCallsInExpr bound e3
-findCallsInExpr bound (ELam params body) = 
+findCallsInExpr bound (ELam params body) =
   findCallsInExpr (Set.union bound (Set.fromList params)) body
 findCallsInExpr bound (EList es) = concatMap (findCallsInExpr bound) es
 findCallsInExpr bound (ETuple es) = concatMap (findCallsInExpr bound) es
@@ -172,9 +240,9 @@ findCallsInExpr bound (EBlock tops mexpr) =
   let (newBound, calls) = foldl collectTop (bound, []) tops
   in calls ++ maybe [] (findCallsInExpr newBound) mexpr
   where
-    collectTop (b, cs) (TLLet name expr) = 
+    collectTop (b, cs) (TLLet name expr) =
       (Set.insert name b, cs ++ findCallsInExpr b expr)
-    collectTop (b, cs) (TLFn name params body) = 
+    collectTop (b, cs) (TLFn name params body) =
       (Set.insert name b, cs ++ findCallsInExpr (Set.union b (Set.fromList params)) body)
     collectTop (b, cs) (TLProc name params stmts) =
       let (b', cs') = foldl collectTop (Set.union b (Set.fromList params), []) stmts
@@ -185,9 +253,9 @@ findCallsInExpr bound (ESeq es) = concatMap (findCallsInExpr bound) es
 findCallsInExpr _ _ = []
 
 findCallsInTopLevel :: Set.Set String -> TopLevel -> [String]
-findCallsInTopLevel bound (TLFn _ params body) = 
+findCallsInTopLevel bound (TLFn _ params body) =
   findCallsInExpr (Set.union bound (Set.fromList params)) body
-findCallsInTopLevel bound (TLProc _ params tops) = 
+findCallsInTopLevel bound (TLProc _ params tops) =
   let bound' = Set.union bound (Set.fromList params)
   in concatMap (findCallsInTopLevel bound') tops
 findCallsInTopLevel bound (TLLet _ expr) = findCallsInExpr bound expr
