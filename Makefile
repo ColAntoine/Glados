@@ -37,6 +37,9 @@ fclean: clean
 re: clean all
 
 coverage:
-	cabal test --enable-coverage
+	stack clean
+	stack test glados:coverage-tests --coverage
+	@echo "\nCoverage report generated at:"
+	@echo ".stack-work/install/x86_64-linux/*/hpc/index.html"
 
 .PHONY: all run clean re coverage test
