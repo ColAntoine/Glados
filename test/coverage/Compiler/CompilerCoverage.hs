@@ -24,6 +24,9 @@ tests = return $ testGroup "Compiler Coverage"
   , additionalControlFlowTests
   , boxingTests
   , typeTests
+  , exhaustiveCompilationTests
+  , exhaustiveFunctionCompilationTests
+  , exhaustiveExpressionCompilationTests
   ]
 
 basicCompilationTests :: TestTree
@@ -243,6 +246,98 @@ typeTests = testGroup "Type Tests"
   , testCase "Mixed types in list" $ compiles "[1, \"two\", true]"
   , testCase "Type in conditional" $ compiles "if isInt(5) { 1 } else { 0 }"
   , testCase "Type checking builtin" $ compiles "isBool(true)"
+  ]
+
+exhaustiveCompilationTests :: TestTree
+exhaustiveCompilationTests = testGroup "Exhaustive Compilation Tests"
+  [ testCase "Compile int 1" $ compiles "1"
+  , testCase "Compile int 42" $ compiles "42"
+  , testCase "Compile int 999" $ compiles "999"
+  , testCase "Compile int max" $ compiles "9223372036854775807"
+  , testCase "Compile neg int" $ compiles "-42"
+  , testCase "Compile bool true 1" $ compiles "true"
+  , testCase "Compile bool false 1" $ compiles "false"
+  , testCase "Compile string hello" $ compiles "\"hello\""
+  , testCase "Compile string test" $ compiles "\"test\""
+  , testCase "Compile empty string 1" $ compiles "\"\""
+  , testCase "Compile list ints" $ compiles "[1, 2, 3]"
+  , testCase "Compile list empty" $ compiles "[]"
+  , testCase "Compile list one" $ compiles "[42]"
+  , testCase "Compile tuple two" $ compiles "(1, 2)"
+  , testCase "Compile tuple three" $ compiles "(1, 2, 3)"
+  , testCase "Compile add" $ compiles "1 + 2"
+  , testCase "Compile sub" $ compiles "10 - 5"
+  , testCase "Compile mul" $ compiles "3 * 4"
+  , testCase "Compile div" $ compiles "10 / 2"
+  , testCase "Compile mod" $ compiles "10 % 3"
+  , testCase "Compile eq" $ compiles "5 == 5"
+  , testCase "Compile neq" $ compiles "5 != 3"
+  , testCase "Compile lt" $ compiles "3 < 5"
+  , testCase "Compile lte" $ compiles "3 <= 5"
+  , testCase "Compile gt" $ compiles "5 > 3"
+  , testCase "Compile gte" $ compiles "5 >= 3"
+  , testCase "Compile and" $ compiles "true && false"
+  , testCase "Compile or" $ compiles "true || false"
+  , testCase "Compile not" $ compiles "!true"
+  , testCase "Compile unary minus 1" $ compiles "-5"
+  , testCase "Compile add chain" $ compiles "1 + 2 + 3"
+  , testCase "Compile mul chain" $ compiles "2 * 3 * 4"
+  , testCase "Compile mixed arithmetic 1" $ compiles "2 + 3 * 4"
+  , testCase "Compile mixed arithmetic 2" $ compiles "10 - 4 / 2"
+  , testCase "Compile with parens" $ compiles "(2 + 3) * 4"
+  , testCase "Compile let x" $ compiles "let x = 5"
+  , testCase "Compile let y" $ compiles "let y = 10"
+  ]
+
+exhaustiveFunctionCompilationTests :: TestTree
+exhaustiveFunctionCompilationTests = testGroup "Exhaustive Function Compilation"
+  [ testCase "Compile fn no params" $ compiles "fn f() = 42"
+  , testCase "Compile fn one param" $ compiles "fn f(x) = x"
+  , testCase "Compile fn two params" $ compiles "fn f(x, y) = x + y"
+  , testCase "Compile fn three params" $ compiles "fn f(a, b, c) = a + b + c"
+  , testCase "Compile fn return bool" $ compiles "fn f() = true"
+  , testCase "Compile fn return string" $ compiles "fn f() = \"test\""
+  , testCase "Compile fn return list" $ compiles "fn f() = [1, 2]"
+  , testCase "Compile fn with arithmetic" $ compiles "fn f(x) = x + 1"
+  , testCase "Compile fn with comparison" $ compiles "fn f(x) = x > 0"
+  , testCase "Compile fn with if 1" $ compiles "fn f(x) = if x > 0 { 1 } else { 0 }"
+  , testCase "Compile lambda no param" $ compiles "() => 42"
+  , testCase "Compile lambda one param" $ compiles "(x) => x + 1"
+  , testCase "Compile lambda two params" $ compiles "(x, y) => x + y"
+  , testCase "Compile lambda call" $ compiles "((x) => x + 1)(5)"
+  , testCase "Compile let lambda" $ compiles "let f = (x) => x * 2"
+  , testCase "Compile lambda in list" $ compiles "[(x) => x + 1]"
+  , testCase "Compile recursive fn" $ compiles "fn fact(n) = if n <= 1 { 1 } else { n * fact(n-1) }"
+  , testCase "Compile nested fn def" $ compiles "fn outer(x) = { fn inner(y) = y + 1 inner(x) }"
+  ]
+
+exhaustiveExpressionCompilationTests :: TestTree
+exhaustiveExpressionCompilationTests = testGroup "Exhaustive Expression Compilation"
+  [ testCase "Compile if true" $ compiles "if true { 1 } else { 0 }"
+  , testCase "Compile if false" $ compiles "if false { 0 } else { 1 }"
+  , testCase "Compile if comparison" $ compiles "if 5 > 3 { 1 } else { 0 }"
+  , testCase "Compile if equality" $ compiles "if 5 == 5 { 1 } else { 0 }"
+  , testCase "Compile if and" $ compiles "if true && false { 1 } else { 0 }"
+  , testCase "Compile if or" $ compiles "if true || false { 1 } else { 0 }"
+  , testCase "Compile nested if 1" $ compiles "if true { if true { 1 } else { 2 } } else { 3 }"
+  , testCase "Compile nested if 2" $ compiles "if false { 1 } else { if true { 2 } else { 3 } }"
+  , testCase "Compile if chain" $ compiles "if false { 1 } else { if false { 2 } else { 3 } }"
+  , testCase "Compile head list" $ compiles "head([1, 2, 3])"
+  , testCase "Compile tail list" $ compiles "tail([1, 2, 3])"
+  , testCase "Compile at list" $ compiles "at([1, 2, 3], 0)"
+  , testCase "Compile len list" $ compiles "len([1, 2, 3])"
+  , testCase "Compile reverse list" $ compiles "reverse([1, 2, 3])"
+  , testCase "Compile concat lists" $ compiles "concat([1], [2])"
+  , testCase "Compile head string" $ compiles "head(\"hello\")"
+  , testCase "Compile tail string" $ compiles "tail(\"hello\")"
+  , testCase "Compile at string" $ compiles "at(\"hello\", 0)"
+  , testCase "Compile len string" $ compiles "len(\"hello\")"
+  , testCase "Compile concat strings" $ compiles "concat(\"hello\", \"world\")"
+  , testCase "Compile isInt" $ compiles "isInt(5)"
+  , testCase "Compile isBool" $ compiles "isBool(true)"
+  , testCase "Compile isString" $ compiles "isString(\"test\")"
+  , testCase "Compile isList" $ compiles "isList([1, 2])"
+  , testCase "Compile print" $ compiles "print(\"hello\")"
   ]
 
 -- Helper functions
