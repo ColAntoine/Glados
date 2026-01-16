@@ -27,6 +27,8 @@ tests = return $ testGroup "Compiler Coverage"
   , exhaustiveCompilationTests
   , exhaustiveFunctionCompilationTests
   , exhaustiveExpressionCompilationTests
+  , topLevelTests
+  , cabiTests
   ]
 
 basicCompilationTests :: TestTree
@@ -340,6 +342,424 @@ exhaustiveExpressionCompilationTests = testGroup "Exhaustive Expression Compilat
   , testCase "Compile print" $ compiles "print(\"hello\")"
   ]
 
+-- TopLevel.hs specific tests - comprehensive coverage
+topLevelTests :: TestTree
+topLevelTests = testGroup "TopLevel.hs Coverage"
+  [ testGroup "TLFn compilation"
+      [ testCase "Function with zero params" $ compiles "fn zero() = 0"
+      , testCase "Function with one param" $ compiles "fn id(x) = x"
+      , testCase "Function with two params" $ compiles "fn add(x, y) = x + y"
+      , testCase "Function with three params" $ compiles "fn add3(x, y, z) = x + y + z"
+      , testCase "Function with four params" $ compiles "fn add4(a, b, c, d) = a + b + c + d"
+      , testCase "Function returning constant" $ compiles "fn const() = 42"
+      , testCase "Function with arithmetic body" $ compiles "fn calc(x) = x * 2 + 1"
+      , testCase "Function with comparison body" $ compiles "fn cmp(x, y) = x > y"
+      , testCase "Function with boolean body" $ compiles "fn logic(a, b) = a && b"
+      , testCase "Function with if-else body" $ compiles "fn max(a, b) = if a > b { a } else { b }"
+      , testCase "Function with nested if body" $ compiles "fn sign(x) = if x > 0 { 1 } else { if x < 0 { -1 } else { 0 } }"
+      , testCase "Function with list body" $ compiles "fn list(a, b) = [a, b]"
+      , testCase "Function with string body" $ compiles "fn str() = \"hello\""
+      , testCase "Function with call body" $ compiles "fn f(x) = x\nfn g(y) = f(y)"
+      , testCase "Multiple function definitions" $ compiles "fn f() = 1\nfn g() = 2\nfn h() = 3"
+      , testCase "Function calling previous function" $ compiles "fn a() = 5\nfn b() = a()\nfn c() = b()"
+      , testCase "Function with block body" $ compiles "fn block(x) = { let y = x + 1 y * 2 }"
+      , testCase "Function with pipe operator" $ compiles "fn pipe(x) = x |> (y) => y + 1"
+      , testCase "Function with multiple pipes" $ compiles "fn pipes(x) = x |> (y) => y + 1 |> (z) => z * 2"
+      , testCase "Function with lambda param" $ compiles "fn apply(f, x) = f(x)"
+      , testCase "Function calling builtin" $ compiles "fn getLen(xs) = len(xs)"
+      , testCase "Function with head call" $ compiles "fn first(xs) = head(xs)"
+      , testCase "Function with tail call" $ compiles "fn rest(xs) = tail(xs)"
+      , testCase "Function with at call" $ compiles "fn get(xs, i) = at(xs, i)"
+      , testCase "Function with reverse call" $ compiles "fn rev(xs) = reverse(xs)"
+      , testCase "Function with concat call" $ compiles "fn join(a, b) = concat(a, b)"
+      , testCase "Function with unary minus" $ compiles "fn neg(x) = -x"
+      , testCase "Function with unary not" $ compiles "fn notFunc(b) = !b"
+      , testCase "Function with equality" $ compiles "fn eq(a, b) = a == b"
+      , testCase "Function with inequality" $ compiles "fn neq(a, b) = a != b"
+      , testCase "Function with less than" $ compiles "fn lt(a, b) = a < b"
+      , testCase "Function with less equal" $ compiles "fn le(a, b) = a <= b"
+      , testCase "Function with greater than" $ compiles "fn gt(a, b) = a > b"
+      , testCase "Function with greater equal" $ compiles "fn ge(a, b) = a >= b"
+      , testCase "Function with AND" $ compiles "fn andFunc(a, b) = a && b"
+      , testCase "Function with OR" $ compiles "fn orFunc(a, b) = a || b"
+      , testCase "Function with modulo" $ compiles "fn mod(a, b) = a % b"
+      , testCase "Recursive factorial" $ compiles "fn fact(n) = if n <= 1 { 1 } else { n * fact(n - 1) }"
+      , testCase "Recursive fibonacci" $ compiles "fn fib(n) = if n <= 1 { n } else { fib(n - 1) + fib(n - 2) }"
+      , testCase "Function with empty list" $ compiles "fn emptyList() = []"
+      , testCase "Function with tuple" $ compiles "fn pair(a, b) = (a, b)"
+      , testCase "Function with isInt" $ compiles "fn checkInt(x) = isInt(x)"
+      , testCase "Function with isBool" $ compiles "fn checkBool(x) = isBool(x)"
+      , testCase "Function with isString" $ compiles "fn checkString(x) = isString(x)"
+      , testCase "Function with isList" $ compiles "fn checkList(x) = isList(x)"
+      , testCase "Function with print" $ compiles "fn printMsg(msg) = print(msg)"
+      ]
+  , testGroup "TLProc compilation"
+      [ testCase "Procedure with zero params" $ compiles "fn proc() { }"
+      , testCase "Procedure with one param" $ compiles "fn proc(x) { let y = x }"
+      , testCase "Procedure with two params" $ compiles "fn proc(x, y) { let z = x + y }"
+      , testCase "Procedure with three params" $ compiles "fn proc(a, b, c) { let d = a + b + c }"
+      , testCase "Procedure with let statement" $ compiles "fn proc(x) { let y = x * 2 }"
+      , testCase "Procedure with multiple lets" $ compiles "fn proc(x) { let y = x let z = y }"
+      , testCase "Procedure with expr statement" $ compiles "fn proc(x) { x + 1 }"
+      , testCase "Procedure with function def inside" $ compiles "fn proc() { fn inner() = 42 }"
+      , testCase "Procedure returning zero" $ compiles "fn proc(x) { let y = x }"
+      , testCase "Procedure with nested proc" $ compiles "fn outer() { fn inner() { let x = 5 } }"
+      , testCase "Procedure with print" $ compiles "fn proc(msg) { print(msg) }"
+      , testCase "Procedure with multiple statements" $ compiles "fn proc(x) { let a = x let b = a + 1 b }"
+      , testCase "Procedure calling function" $ compiles "fn f(x) = x\nfn proc(y) { f(y) }"
+      , testCase "Procedure with arithmetic" $ compiles "fn proc(a, b) { a + b }"
+      , testCase "Procedure with comparison" $ compiles "fn proc(a, b) { a > b }"
+      , testCase "Procedure with boolean op" $ compiles "fn proc(a, b) { a && b }"
+      , testCase "Procedure with if-else" $ compiles "fn proc(x) { if x > 0 { 1 } else { 0 } }"
+      , testCase "Procedure with list" $ compiles "fn proc(a, b) { [a, b] }"
+      , testCase "Procedure with string" $ compiles "fn proc() { \"hello\" }"
+      , testCase "Procedure with builtin call" $ compiles "fn proc(xs) { len(xs) }"
+      ]
+  , testGroup "TLLet compilation"
+      [ testCase "Let binding integer" $ compiles "let x = 42"
+      , testCase "Let binding boolean" $ compiles "let flag = true"
+      , testCase "Let binding string" $ compiles "let msg = \"hello\""
+      , testCase "Let binding list" $ compiles "let nums = [1, 2, 3]"
+      , testCase "Let binding expression" $ compiles "let result = 2 + 3"
+      , testCase "Let binding function call" $ compiles "fn f() = 5\nlet x = f()"
+      , testCase "Let binding with pipe" $ compiles "let result = 5 |> (x) => x + 1"
+      , testCase "Let binding lambda" $ compiles "let f = (x) => x + 1"
+      , testCase "Let binding if-else" $ compiles "let x = if true { 1 } else { 0 }"
+      , testCase "Multiple let bindings" $ compiles "let a = 1\nlet b = 2\nlet c = 3"
+      , testCase "Let using previous let" $ compiles "let x = 5\nlet y = x + 1"
+      , testCase "Chained let dependencies" $ compiles "let a = 1\nlet b = a + 1\nlet c = b + 1"
+      , testCase "Let binding complex expr" $ compiles "let x = (2 + 3) * (4 - 1)"
+      , testCase "Let binding builtin call" $ compiles "let length = len([1, 2, 3])"
+      , testCase "Let binding head" $ compiles "let first = head([1, 2, 3])"
+      , testCase "Let binding tail" $ compiles "let rest = tail([1, 2, 3])"
+      , testCase "Let binding at" $ compiles "let elem = at([1, 2, 3], 1)"
+      , testCase "Let binding concat" $ compiles "let joined = concat([1], [2])"
+      , testCase "Let binding reverse" $ compiles "let rev = reverse([1, 2, 3])"
+      , testCase "Let binding unary minus" $ compiles "let neg = -5"
+      , testCase "Let binding unary not" $ compiles "let notVal = !true"
+      , testCase "Let binding equality" $ compiles "let eq = 5 == 5"
+      , testCase "Let binding inequality" $ compiles "let neq = 5 != 3"
+      , testCase "Let binding less than" $ compiles "let lt = 3 < 5"
+      , testCase "Let binding less equal" $ compiles "let le = 3 <= 5"
+      , testCase "Let binding greater than" $ compiles "let gt = 5 > 3"
+      , testCase "Let binding greater equal" $ compiles "let ge = 5 >= 3"
+      , testCase "Let binding AND" $ compiles "let andVal = true && false"
+      , testCase "Let binding OR" $ compiles "let orVal = true || false"
+      , testCase "Let binding modulo" $ compiles "let mod = 10 % 3"
+      , testCase "Let binding tuple" $ compiles "let pair = (1, 2)"
+      , testCase "Let binding empty list" $ compiles "let empty = []"
+      , testCase "Let binding nested list" $ compiles "let nested = [[1, 2], [3, 4]]"
+      , testCase "Let binding isInt" $ compiles "let check = isInt(5)"
+      , testCase "Let binding isBool" $ compiles "let check = isBool(true)"
+      , testCase "Let binding isString" $ compiles "let check = isString(\"test\")"
+      , testCase "Let binding isList" $ compiles "let check = isList([1, 2])"
+      ]
+  , testGroup "TLExpr compilation"
+      [ testCase "Top-level integer expr" $ compiles "42"
+      , testCase "Top-level boolean expr" $ compiles "true"
+      , testCase "Top-level string expr" $ compiles "\"hello\""
+      , testCase "Top-level arithmetic expr" $ compiles "2 + 3"
+      , testCase "Top-level comparison expr" $ compiles "5 > 3"
+      , testCase "Top-level boolean expr" $ compiles "true && false"
+      , testCase "Top-level list expr" $ compiles "[1, 2, 3]"
+      , testCase "Top-level function call expr" $ compiles "fn f() = 5\nf()"
+      , testCase "Top-level if-else expr" $ compiles "if true { 1 } else { 0 }"
+      , testCase "Top-level builtin call" $ compiles "len([1, 2, 3])"
+      , testCase "Top-level head call" $ compiles "head([1, 2, 3])"
+      , testCase "Top-level tail call" $ compiles "tail([1, 2, 3])"
+      , testCase "Top-level at call" $ compiles "at([1, 2, 3], 0)"
+      , testCase "Top-level reverse call" $ compiles "reverse([1, 2, 3])"
+      , testCase "Top-level concat call" $ compiles "concat([1], [2])"
+      , testCase "Top-level print call" $ compiles "print(\"test\")"
+      , testCase "Top-level variable reference" $ compiles "let x = 5\nx"
+      , testCase "Top-level lambda call" $ compiles "((x) => x + 1)(5)"
+      , testCase "Top-level pipe expr" $ compiles "5 |> (x) => x + 1"
+      , testCase "Top-level multiple pipes" $ compiles "5 |> (x) => x + 1 |> (y) => y * 2"
+      , testCase "Top-level unary minus" $ compiles "-42"
+      , testCase "Top-level unary not" $ compiles "!true"
+      , testCase "Top-level equality" $ compiles "5 == 5"
+      , testCase "Top-level inequality" $ compiles "5 != 3"
+      , testCase "Top-level less than" $ compiles "3 < 5"
+      , testCase "Top-level less equal" $ compiles "3 <= 5"
+      , testCase "Top-level greater than" $ compiles "5 > 3"
+      , testCase "Top-level greater equal" $ compiles "5 >= 3"
+      , testCase "Top-level AND" $ compiles "true && false"
+      , testCase "Top-level OR" $ compiles "true || false"
+      , testCase "Top-level modulo" $ compiles "10 % 3"
+      , testCase "Top-level tuple" $ compiles "(1, 2, 3)"
+      , testCase "Top-level empty list" $ compiles "[]"
+      , testCase "Top-level nested list" $ compiles "[[1], [2]]"
+      , testCase "Top-level isInt" $ compiles "isInt(42)"
+      , testCase "Top-level isBool" $ compiles "isBool(true)"
+      , testCase "Top-level isString" $ compiles "isString(\"test\")"
+      , testCase "Top-level isList" $ compiles "isList([1])"
+      ]
+  , testGroup "Program compilation"
+      [ testCase "Single function program" $ compiles "fn main() = 42"
+      , testCase "Multiple functions program" $ compiles "fn f() = 1\nfn g() = 2"
+      , testCase "Function and let program" $ compiles "fn f() = 5\nlet x = f()"
+      , testCase "Function and expr program" $ compiles "fn f() = 5\nf()"
+      , testCase "Let and expr program" $ compiles "let x = 5\nx + 1"
+      , testCase "Complex program structure" $ compiles "fn a() = 1\nfn b() = 2\nlet x = a()\nlet y = b()\nx + y"
+      , testCase "Program with procedure" $ compiles "fn proc() { let x = 5 }\nproc()"
+      , testCase "Program with nested functions" $ compiles "fn outer() = { fn inner() = 42 inner() }"
+      , testCase "Program ending with let" $ compiles "fn f() = 5\nlet x = f()"
+      , testCase "Program ending with expr" $ compiles "fn f() = 5\nlet x = 10\nf() + x"
+      , testCase "Only let bindings" $ compiles "let x = 1\nlet y = 2"
+      , testCase "Only expressions" $ compiles "1\n2\n3"
+      , testCase "Function then multiple exprs" $ compiles "fn f() = 42\nf()\nf()"
+      ]
+  , testGroup "Program with main return value"
+      [ testCase "Program returns integer" $ compiles "42"
+      , testCase "Program returns expression" $ compiles "2 + 3"
+      , testCase "Program returns function call" $ compiles "fn f() = 42\nf()"
+      , testCase "Program returns variable" $ compiles "let x = 42\nx"
+      , testCase "Program returns if-else" $ compiles "if true { 42 } else { 0 }"
+      , testCase "Program returns builtin" $ compiles "len([1, 2, 3])"
+      , testCase "Program returns lambda call" $ compiles "((x) => x * 2)(21)"
+      , testCase "Program returns pipe" $ compiles "42 |> (x) => x"
+      , testCase "Program with multiple exprs returns last" $ compiles "1\n2\n3"
+      , testCase "Program returns boolean" $ compiles "true"
+      , testCase "Program returns string" $ compiles "\"result\""
+      , testCase "Program returns list" $ compiles "[1, 2, 3]"
+      , testCase "Program returns comparison" $ compiles "5 > 3"
+      , testCase "Program returns boolean op" $ compiles "true && false"
+      ]
+  , testGroup "Function name tracking"
+      [ testCase "Single function name tracked" $ compiles "fn myFunc() = 42"
+      , testCase "Multiple function names tracked" $ compiles "fn first() = 1\nfn second() = 2\nfn third() = 3"
+      , testCase "Procedure name tracked" $ compiles "fn myProc() { let x = 5 }"
+      , testCase "Mixed function and procedure names" $ compiles "fn func() = 1\nfn proc() { let x = 2 }"
+      , testCase "Function names with underscores" $ compiles "fn my_func() = 1\nfn another_one() = 2"
+      , testCase "Function names with numbers" $ compiles "fn func1() = 1\nfn func2() = 2"
+      ]
+  , testGroup "Nested function compilation"
+      [ testCase "Function with nested function" $ compiles "fn outer(x) = { fn inner(y) = y + 1 inner(x) }"
+      , testCase "Function with multiple nested" $ compiles "fn outer(x) = { fn a(y) = y + 1 fn b(z) = z * 2 a(x) + b(x) }"
+      , testCase "Deeply nested functions" $ compiles "fn a(x) = { fn b(y) = { fn c(z) = z + 1 c(y) } b(x) }"
+      , testCase "Procedure with nested function" $ compiles "fn proc() { fn inner() = 42 }"
+      , testCase "Procedure with nested procedure" $ compiles "fn outer() { fn inner() { let x = 5 } }"
+      , testCase "Nested function with params" $ compiles "fn outer(a, b) = { fn inner(x, y) = x + y inner(a, b) }"
+      ]
+  , testGroup "Code state management"
+      [ testCase "Locals cleared between functions" $ compiles "fn f(x) = x\nfn g(y) = y"
+      , testCase "Code cleared between functions" $ compiles "fn a() = { let x = 1 x }\nfn b() = { let y = 2 y }"
+      , testCase "State preserved in main" $ compiles "let x = 1\nlet y = 2\nx + y"
+      , testCase "Function state isolated" $ compiles "fn f() = { let local = 1 local }\nlet global = 2"
+      , testCase "Params isolated between functions" $ compiles "fn f(x, y) = x + y\nfn g(a, b, c) = a + b + c"
+      ]
+  , testGroup "Pipe desugaring in compilation"
+      [ testCase "Pipe in function body" $ compiles "fn f(x) = x |> (y) => y + 1"
+      , testCase "Pipe in let binding" $ compiles "let result = 5 |> (x) => x * 2"
+      , testCase "Pipe in top-level expr" $ compiles "42 |> (x) => x"
+      , testCase "Multiple pipes in function" $ compiles "fn f(x) = x |> (a) => a + 1 |> (b) => b * 2"
+      , testCase "Multiple pipes in let" $ compiles "let x = 1 |> (a) => a + 1 |> (b) => b + 1"
+      , testCase "Pipe with complex lambda" $ compiles "fn f(x) = x |> (a) => a * 2 + 1"
+      , testCase "Chained pipes with builtins" $ compiles "fn f(xs) = xs |> (a) => head(a) |> (b) => b + 1"
+      ]
+  , testGroup "LLVM output structure"
+      [ testCase "Output contains prelude" $ assertContains (compileToLLVM "42") "Value"
+      , testCase "Output contains main function" $ assertContains (compileToLLVM "42") "define i32 @main"
+      , testCase "Output contains entry label" $ assertContains (compileToLLVM "42") "entry:"
+      , testCase "Output contains ret" $ assertContains (compileToLLVM "42") "ret"
+      , testCase "Function definition in output" $ assertContains (compileToLLVM "fn f() = 42") "define %Value @f"
+      , testCase "Function with params in output" $ assertContains (compileToLLVM "fn f(x) = x") "%Value* %x.ptr"
+      , testCase "Multiple functions in output" $ 
+          let code = compileToLLVM "fn f() = 1\nfn g() = 2" in
+          assertContains code "@f" >> assertContains code "@g"
+      , testCase "String in output creates global" $ assertContains (compileToLLVM "\"hello\"") "@str"
+      , testCase "Let binding creates alloca" $ assertContains (compileToLLVM "let x = 42") "alloca"
+      , testCase "Let binding creates store" $ assertContains (compileToLLVM "let x = 42") "store"
+      , testCase "Multiple functions create multiple defines" $ 
+          let code = compileToLLVM "fn a() = 1\nfn b() = 2\nfn c() = 3" in
+          assertContains code "@a" >> assertContains code "@b" >> assertContains code "@c"
+      ]
+  , testGroup "Return value handling"
+      [ testCase "Integer return creates tag check" $ assertContains (compileToLLVM "42") "icmp eq"
+      , testCase "Integer return has int path" $ assertContains (compileToLLVM "42") "trunc"
+      , testCase "Integer return has zero path" $ assertContains (compileToLLVM "42") "ret i32 0"
+      , testCase "Function call return handled" $ assertContains (compileToLLVM "fn f() = 42\nf()") "call %Value @f"
+      , testCase "Boolean return handled" $ assertContains (compileToLLVM "true") "ret i32"
+      , testCase "String return handled" $ assertContains (compileToLLVM "\"test\"") "ret i32"
+      , testCase "List return handled" $ assertContains (compileToLLVM "[1, 2]") "ret i32"
+      ]
+  , testGroup "Edge cases"
+      [ testCase "Function with same param names as previous" $ compiles "fn f(x) = x\nfn g(x) = x"
+      , testCase "Let shadowing function param" $ compiles "fn f(x) = { let x = x + 1 x }"
+      , testCase "Multiple lets same name different scopes" $ compiles "fn f() = { let x = 1 x }\nfn g() = { let x = 2 x }"
+      , testCase "Empty procedure compilation" $ compiles "fn proc() { }"
+      , testCase "Function calling itself" $ compiles "fn f(n) = if n <= 0 { 0 } else { f(n - 1) }"
+      , testCase "Very deep recursion definition" $ compiles "fn deep(n) = if n <= 0 { 0 } else { deep(deep(n - 1)) }"
+      , testCase "Many parameters" $ compiles "fn many(a, b, c, d, e, f, g) = a + b + c + d + e + f + g"
+      ]
+  ]
+
+-- C ABI specific tests - comprehensive coverage of compileProgramCABI and related functions
+cabiTests :: TestTree
+cabiTests = testGroup "C ABI Compilation"
+  [ testGroup "compileProgramCABI basic functionality"
+      [ testCase "CABI compiles empty program" $ compilesCABI ""
+      , testCase "CABI compiles single function" $ compilesCABI "fn f() = 42"
+      , testCase "CABI compiles function with one param" $ compilesCABI "fn f(x) = x"
+      , testCase "CABI compiles function with two params" $ compilesCABI "fn add(x, y) = x + y"
+      , testCase "CABI compiles function with three params" $ compilesCABI "fn add3(a, b, c) = a + b + c"
+      , testCase "CABI compiles multiple functions" $ compilesCABI "fn f() = 1\nfn g() = 2"
+      , testCase "CABI compiles function with arithmetic" $ compilesCABI "fn calc(x) = x * 2 + 1"
+      , testCase "CABI compiles function with comparison" $ compilesCABI "fn cmp(a, b) = a > b"
+      , testCase "CABI compiles function with boolean logic" $ compilesCABI "fn logic(a, b) = a && b"
+      , testCase "CABI compiles function with if-else" $ compilesCABI "fn max(a, b) = if a > b { a } else { b }"
+      ]
+  , testGroup "compileProgramCABI with procedures"
+      [ testCase "CABI compiles empty procedure" $ compilesCABI "fn proc() { }"
+      , testCase "CABI compiles procedure with param" $ compilesCABI "fn proc(x) { let y = x }"
+      , testCase "CABI compiles procedure with two params" $ compilesCABI "fn proc(x, y) { let z = x + y }"
+      , testCase "CABI compiles procedure with let statements" $ compilesCABI "fn proc(x) { let a = x let b = a + 1 }"
+      , testCase "CABI compiles procedure with expr statement" $ compilesCABI "fn proc(x) { x + 1 }"
+      , testCase "CABI compiles multiple procedures" $ compilesCABI "fn p1() { let x = 1 }\nfn p2() { let y = 2 }"
+      , testCase "CABI compiles mixed functions and procedures" $ compilesCABI "fn f() = 1\nfn proc() { let x = 2 }"
+      ]
+  , testGroup "compileProgramCABI ignores non-function top-levels"
+      [ testCase "CABI ignores top-level let" $ compilesCABI "let x = 42\nfn f() = 1"
+      , testCase "CABI ignores top-level expr" $ compilesCABI "42\nfn f() = 1"
+      ]
+  , testGroup "compileTopLevelCABI function"
+      [ testCase "CABI function with internal name" $ 
+          assertContains (compileToLLVMCABI "fn myFunc() = 42") "@__flux_myFunc"
+      , testCase "CABI function zero params has empty param list" $ 
+          assertContains (compileToLLVMCABI "fn f() = 1") "@__flux_f()"
+      , testCase "CABI function one param" $ 
+          assertContains (compileToLLVMCABI "fn f(x) = x") "%Value* %x.ptr"
+      , testCase "CABI function two params" $ 
+          assertContains (compileToLLVMCABI "fn f(x, y) = x + y") "%Value* %x.ptr, %Value* %y.ptr"
+      , testCase "CABI function has entry label" $ 
+          assertContains (compileToLLVMCABI "fn f() = 1") "entry:"
+      , testCase "CABI function has return" $ 
+          assertContains (compileToLLVMCABI "fn f() = 42") "ret %Value"
+      , testCase "CABI function processes pipe operators" $ compilesCABI "fn f(x) = x |> (y) => y + 1"
+      , testCase "CABI function with nested function" $ compilesCABI "fn outer(x) = { fn inner(y) = y + 1 inner(x) }"
+      ]
+  , testGroup "compileTopLevelCABIProc procedure"
+      [ testCase "CABI proc with internal name" $ 
+          assertContains (compileToLLVMCABI "fn myProc() { let x = 1 }") "@__flux_myProc"
+      , testCase "CABI proc zero params" $ 
+          assertContains (compileToLLVMCABI "fn proc() { }") "@__flux_proc()"
+      , testCase "CABI proc one param" $ 
+          assertContains (compileToLLVMCABI "fn proc(x) { let y = x }") "%Value* %x.ptr"
+      , testCase "CABI proc two params" $ 
+          assertContains (compileToLLVMCABI "fn proc(a, b) { let c = a + b }") "%Value* %a.ptr, %Value* %b.ptr"
+      , testCase "CABI proc has entry label" $ 
+          assertContains (compileToLLVMCABI "fn proc() { let x = 1 }") "entry:"
+      , testCase "CABI proc returns boxed zero" $ 
+          assertContains (compileToLLVMCABI "fn proc() { }") "ret %Value"
+      , testCase "CABI proc with nested procedure" $ compilesCABI "fn outer() { fn inner() { let x = 5 } }"
+      ]
+  , testGroup "generateCABIWrapper function"
+      [ testCase "Wrapper created for function" $ 
+          assertContains (compileToLLVMCABI "fn f() = 42") "define i64 @f"
+      , testCase "Wrapper zero params no boxing" $ 
+          let code = compileToLLVMCABI "fn f() = 42" 
+          in assertContains code "define i64 @f()" >> assertContains code "@__flux_f()"
+      , testCase "Wrapper one param boxes argument" $ 
+          let code = compileToLLVMCABI "fn f(x) = x"
+          in assertContains code "i64 %p0" >> assertContains code "@box_int(i64 %p0)"
+      , testCase "Wrapper one param allocates boxed value" $ 
+          assertContains (compileToLLVMCABI "fn f(x) = x") "alloca %Value"
+      , testCase "Wrapper one param stores boxed value" $ 
+          assertContains (compileToLLVMCABI "fn f(x) = x") "store %Value"
+      , testCase "Wrapper two params boxes both" $ 
+          let code = compileToLLVMCABI "fn f(x, y) = x + y"
+          in assertContains code "@box_int(i64 %p0)" >> assertContains code "@box_int(i64 %p1)"
+      , testCase "Wrapper calls internal function" $ 
+          assertContains (compileToLLVMCABI "fn f(x) = x") "call %Value @__flux_f"
+      , testCase "Wrapper passes boxed params" $ 
+          assertContains (compileToLLVMCABI "fn f(x) = x") "%Value* %pboxptr0"
+      , testCase "Wrapper unboxes result" $ 
+          assertContains (compileToLLVMCABI "fn f() = 42") "@unbox_int(%Value %res)"
+      , testCase "Wrapper returns i64" $ 
+          assertContains (compileToLLVMCABI "fn f() = 42") "ret i64"
+      , testCase "Wrapper three params" $ 
+          let code = compileToLLVMCABI "fn f(a, b, c) = a + b + c"
+          in assertContains code "i64 %p0, i64 %p1, i64 %p2"
+      , testCase "Wrapper for procedure" $ 
+          assertContains (compileToLLVMCABI "fn proc(x) { let y = x }") "define i64 @proc"
+      ]
+  , testGroup "CABI output structure"
+      [ testCase "CABI output has C ABI mode comment" $ 
+          assertContains (compileToLLVMCABI "fn f() = 1") "; Generated by Flux compiler (C ABI mode)"
+      , testCase "CABI output has prelude" $ 
+          assertContains (compileToLLVMCABI "fn f() = 1") "Value"
+      , testCase "CABI output has internal function" $ 
+          assertContains (compileToLLVMCABI "fn f() = 1") "@__flux_f"
+      , testCase "CABI output has wrapper function" $ 
+          assertContains (compileToLLVMCABI "fn f() = 1") "define i64 @f"
+      , testCase "CABI multiple functions have multiple wrappers" $ 
+          let code = compileToLLVMCABI "fn f() = 1\nfn g() = 2"
+          in assertContains code "define i64 @f" >> assertContains code "define i64 @g"
+      , testCase "CABI strings create globals" $ 
+          assertContains (compileToLLVMCABI "fn f() = \"hello\"") "@str"
+      ]
+  , testGroup "CABI function name tracking"
+      [ testCase "CABI tracks single function name" $ compilesCABI "fn myFunc() = 1"
+      , testCase "CABI tracks multiple function names" $ compilesCABI "fn f1() = 1\nfn f2() = 2\nfn f3() = 3"
+      , testCase "CABI tracks procedure name" $ compilesCABI "fn proc() { let x = 1 }"
+      , testCase "CABI tracks mixed function and procedure names" $ compilesCABI "fn func() = 1\nfn proc() { let x = 2 }"
+      ]
+  , testGroup "CABI edge cases"
+      [ testCase "CABI many parameters" $ compilesCABI "fn many(a, b, c, d, e) = a + b + c + d + e"
+      , testCase "CABI recursive function" $ compilesCABI "fn fact(n) = if n <= 1 { 1 } else { n * fact(n - 1) }"
+      , testCase "CABI function with list" $ compilesCABI "fn list(a, b) = [a, b]"
+      , testCase "CABI function with string" $ compilesCABI "fn str() = \"test\""
+      , testCase "CABI function with boolean" $ compilesCABI "fn bool() = true"
+      , testCase "CABI function with builtin" $ compilesCABI "fn getLen(xs) = len(xs)"
+      , testCase "CABI function with lambda" $ compilesCABI "fn apply(f, x) = f(x)"
+      , testCase "CABI deeply nested function" $ compilesCABI "fn outer(x) = { fn inner(y) = { fn innermost(z) = z + 1 innermost(y) } inner(x) }"
+      ]
+  , testGroup "compileProgramToFile functionality"
+      [ testCase "Regular compilation mode" $ do
+          case Parser.parseProgram "fn f() = 42" of
+            Left err -> assertFailure $ "Parse error: " ++ show err
+            Right ast -> do
+              let result = Compiler.compileProgram ast
+              assertContains result "define i32 @main"
+              assertBool "Should not have C ABI mode comment" (not $ isInfixOf "C ABI mode" result)
+      , testCase "CABI compilation mode" $ do
+          case Parser.parseProgram "fn f() = 42" of
+            Left err -> assertFailure $ "Parse error: " ++ show err
+            Right ast -> do
+              let result = Compiler.compileProgramCABI ast
+              assertContains result "; Generated by Flux compiler (C ABI mode)"
+              assertContains result "define i64 @f"
+      ]
+  , testGroup "CABI state management"
+      [ testCase "CABI locals cleared between functions" $ compilesCABI "fn f(x) = x\nfn g(y) = y"
+      , testCase "CABI code cleared between functions" $ compilesCABI "fn f() = { let x = 1 x }\nfn g() = { let y = 2 y }"
+      , testCase "CABI nested functions isolated" $ compilesCABI "fn outer1() = { fn inner() = 1 inner() }\nfn outer2() = { fn inner() = 2 inner() }"
+      ]
+  , testGroup "CABI parameter handling"
+      [ testCase "CABI param with arithmetic" $ compilesCABI "fn f(x) = x + 10"
+      , testCase "CABI param with comparison" $ compilesCABI "fn f(x, y) = x < y"
+      , testCase "CABI param with boolean op" $ compilesCABI "fn f(a, b) = a || b"
+      , testCase "CABI param in if condition" $ compilesCABI "fn f(x) = if x > 0 { 1 } else { 0 }"
+      , testCase "CABI param in list" $ compilesCABI "fn f(a, b) = [a, b, a + b]"
+      , testCase "CABI param in function call" $ compilesCABI "fn id(x) = x\nfn f(y) = id(y)"
+      , testCase "CABI param in builtin call" $ compilesCABI "fn f(xs) = head(xs)"
+      ]
+  , testGroup "CABI expression coverage"
+      [ testCase "CABI unary minus" $ compilesCABI "fn neg(x) = -x"
+      , testCase "CABI unary not" $ compilesCABI "fn notFunc(b) = !b"
+      , testCase "CABI equality" $ compilesCABI "fn eq(a, b) = a == b"
+      , testCase "CABI inequality" $ compilesCABI "fn neq(a, b) = a != b"
+      , testCase "CABI less than" $ compilesCABI "fn lt(a, b) = a < b"
+      , testCase "CABI less equal" $ compilesCABI "fn le(a, b) = a <= b"
+      , testCase "CABI greater than" $ compilesCABI "fn gt(a, b) = a > b"
+      , testCase "CABI greater equal" $ compilesCABI "fn ge(a, b) = a >= b"
+      , testCase "CABI modulo" $ compilesCABI "fn mod(a, b) = a % b"
+      , testCase "CABI AND" $ compilesCABI "fn andFunc(a, b) = a && b"
+      , testCase "CABI OR" $ compilesCABI "fn orFunc(a, b) = a || b"
+      , testCase "CABI complex expression" $ compilesCABI "fn complex(a, b, c) = (a + b) * c - (a % b)"
+      ]
+  ]
+
 -- Helper functions
 compiles :: String -> Assertion
 compiles input = do
@@ -354,3 +774,21 @@ compileToLLVM input =
   case Parser.parseProgram input of
     Left _ -> ""
     Right ast -> Compiler.compileProgram ast
+
+compilesCABI :: String -> Assertion
+compilesCABI input = do
+  case Parser.parseProgram input of
+    Left err -> assertFailure $ "Parse error: " ++ show err
+    Right ast -> do
+      let result = Compiler.compileProgramCABI ast
+      length result `seq` return ()  -- Force evaluation to ensure it doesn't crash
+
+compileToLLVMCABI :: String -> String
+compileToLLVMCABI input = 
+  case Parser.parseProgram input of
+    Left _ -> ""
+    Right ast -> Compiler.compileProgramCABI ast
+
+assertContains :: String -> String -> Assertion
+assertContains haystack needle =
+  assertBool ("Expected output to contain '" ++ needle ++ "'") (needle `isInfixOf` haystack)
