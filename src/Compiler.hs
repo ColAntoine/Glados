@@ -1,6 +1,7 @@
 module Compiler
   ( compileProgram
+  , compileProgramCABI
   , compileProgramToFile
   ) where
 
-import Compiler.TopLevel (compileProgram, compileProgramToFile)
+import Compiler.TopLevel (compileProgram, compileProgramCABI, compileProgramToFile)

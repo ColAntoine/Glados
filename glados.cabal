@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           glados
-version:        2.8.0
+version:        2.9.0
 build-type:     Simple
 
 library
@@ -61,6 +61,34 @@ executable glados
     , mtl
     , parser-combinators
     , process
+    , text
+  default-language: Haskell2010
+
+test-suite coverage-tests
+  type: exitcode-stdio-1.0
+  main-is: Coverage.hs
+  other-modules:
+      AST.ASTCoverage
+      Compiler.CompilerCoverage
+      Interpreter.InterpreterCoverage
+      Parser.ParserCoverage
+      Paths_glados
+  hs-source-dirs:
+      test/coverage
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , directory
+    , filepath
+    , glados
+    , megaparsec
+    , mtl
+    , parser-combinators
+    , process
+    , tasty
+    , tasty-hunit
+    , temporary
     , text
   default-language: Haskell2010
 
