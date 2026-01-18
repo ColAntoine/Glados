@@ -1,5 +1,5 @@
 name: glados
-version: 2.13.0
+version: 3.0.0
 dependencies:
   - base >= 4.7 && < 5
   - mtl
