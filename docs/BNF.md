@@ -24,9 +24,7 @@ This document provides the formal Backus-Naur Form (BNF) grammar specification f
               | <let-binding>
               | <expression>
 
-<import-stmt> ::= "import" "{" <import-list> "}" "from" <string-literal>
-
-<import-list> ::= <identifier> {"," <identifier>}
+<import-stmt> ::= "import" <identifier>
 ```
 
 ### Function and Procedure Definitions
@@ -98,20 +96,27 @@ This document provides the formal Backus-Naur Form (BNF) grammar specification f
 <if-expr> ::= "if" <expression> <block> ["else" (<block> | <if-expr>)]
 
 <return-expr> ::= "RET" <expression>
-```
 
-### Blocks
-
-```bnf
-<block> ::= "{" {<top-level>} [<expression>] "}"
+Note: Return statements use the RET keyword, not 'return'.
 ```
 
 ### Lambda Expressions
 
 ```bnf
-<lambda-expr> ::= "\" "(" <param-list> ")" "->" <expression>
-                | "\" <identifier> "->" <expression>
+<lambda-expr> ::= "(" <param-list> ")" "=>" <expression>
 ```
+
+Note: Lambda expressions can only contain single expressions, not blocks. For complex logic, use function definitions.
+
+### Blocks
+
+```bnf
+<block> ::= "{" {<top-level>} [<expression>] "}"
+
+Note: Blocks are only valid inside function bodies, not as standalone expressions in let bindings or other contexts. Nested anonymous blocks are not supported.
+```
+
+
 
 ### Literals
 
@@ -205,15 +210,17 @@ factorial(10) |> print
 
 ### Block Expressions
 
-A block can contain top-level forms (function definitions, let bindings) and optionally ends with an expression that becomes the block's value:
+Blocks can only be used inside function bodies. A block can contain top-level forms (function definitions, let bindings) and optionally ends with an expression that becomes the block's value:
 
 ```flux
-{
+fn example() = {
     let x = 10
     fn helper(n) = n + x
     helper(5)  // block evaluates to 15
 }
 ```
+
+Note: Blocks cannot be used as standalone expressions in let bindings or nested anonymously.
 
 ### Pipeline Desugaring
 
@@ -233,14 +240,10 @@ factorial(5)
 10 |> double |> print
 print(double(10))
 
-// With tuple unpacking:
-(5, 3) |> add
-add(5, 3)
+// With lambdas:
+5 |> (x) => x * 2
+(x) => x * 2 (5)
 ```
-
-### Recursion (No Loops)
-
-Flux is a functional language and uses **recursion** instead of loops. See examples in [SYNTAX.md](SYNTAX.md#4-recursion-iteration-in-functional-style).
 
 ### Tuple Unpacking
 
@@ -250,6 +253,10 @@ When a tuple is passed as an argument to a function, it can be automatically unp
 fn add(a, b) = a + b
 (5, 10) |> add  // unpacks to add(5, 10)
 ```
+
+### Recursion (No Loops)
+
+Flux is a functional language and uses **recursion** instead of loops. See examples in [SYNTAX.md](SYNTAX.md#4-recursion-iteration-in-functional-style).
 
 ## Extended BNF (EBNF) Alternative Notation
 
@@ -263,6 +270,8 @@ top_level = import_stmt
           | procedure_def 
           | let_binding 
           | expression ;
+
+import_stmt = "import" identifier ;
 
 function_def = "fn" identifier "(" [ param_list ] ")" "=" expression ;
 
@@ -307,8 +316,7 @@ if_expr = "if" expression block [ "else" ( block | if_expr ) ] ;
 
 block = "{" { top_level } [ expression ] "}" ;
 
-lambda_expr = "\" "(" param_list ")" "->" expression
-            | "\" identifier "->" expression ;
+lambda_expr = "(" param_list ")" "=>" expression ;
 
 list_literal = "[" [ expression { "," expression } ] "]" ;
 
@@ -328,9 +336,11 @@ string_literal = '"' { string_char } '"' ;
 ### Keywords (Reserved Words)
 
 ```
-fn      if      else    let     import  from
+fn      if      else    let     import
 true    false   RET
 ```
+
+Note: The `from` keyword is not used in the current import syntax.
 
 ### Operators and Delimiters
 
@@ -340,7 +350,7 @@ true    false   RET
 && ||  !                // Logical
 |>                      // Pipeline
 =                       // Assignment/Definition
-\  ->                   // Lambda
+=>                      // Lambda
 ( ) [ ] { }             // Delimiters
 ,  ;                    // Separators
 ```
@@ -405,6 +415,9 @@ fn map(f, list) = {
 
 fn double(x) = x * 2
 map(double, [1, 2, 3]) |> print
+
+// With lambda:
+map((x) => x * 2, [1, 2, 3]) |> print
 ```
 
 ## See Also
