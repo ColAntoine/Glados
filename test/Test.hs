@@ -10,6 +10,8 @@ import qualified FluxCases.Strings.Strings as StringTests
 import qualified FluxCases.Complex.Complex as ComplexTests
 import qualified FluxCases.Errors.Errors as ErrorTests
 
+-- | Simple test-runner flag: pass --only-lisp to run only the LispCases groups.
+-- Any other tasty flags (like --pattern) are forwarded.
 main :: IO ()
 main = do
   arithmeticTests <- ArithmeticTests.tests
