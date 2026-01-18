@@ -59,6 +59,27 @@ stack build
 stack test
 ```
 
+### 6. Check Test Coverage (Optional)
+
+To measure code coverage with Haskell Program Coverage (HPC), use cabal:
+
+```bash
+make coverage
+```
+
+Or directly with cabal:
+
+```bash
+cabal test --enable-coverage
+```
+
+The coverage report will be generated in:
+```
+dist-newstyle/build/x86_64-linux/ghc-9.4.8/glados-0.1.0.0/t/glados-test/hpc/vanilla/html/hpc_index.html
+```
+
+Open `hpc_index.html` in a browser to view detailed coverage statistics for each module.
+
 ## Pre-commit Hooks
 
 The project uses pre-commit hooks to maintain code quality. The following hooks run automatically before each commit:
@@ -164,6 +185,20 @@ git push origin feature/new-parser
 ## Writing Tests
 
 For detailed information on how to write and structure tests for the project, see [test/TESTING.md](test/TESTING.md).
+
+### Test Coverage Strategy
+
+The test suite is instrumented for coverage tracking via HPC (Haskell Program Coverage). All tests use direct library evaluation rather than shell subprocess calls to ensure proper coverage instrumentation.
+
+**Key components:**
+- `TestHelper.hs`: Provides `evalLisp` function that calls parser and evaluator directly
+- All LispCases test modules import and use `evalLisp` instead of `readProcess`
+- Coverage is enabled with `-fhpc` compiler flag in both library and test stanzas
+
+**To maintain coverage accuracy when adding new tests:**
+1. Use `evalLisp` from `TestHelper` to evaluate Lisp expressions directly
+2. Avoid using `readProcess` or shell subprocess calls
+3. Run `make coverage` to verify coverage reports include your new tests
 
 ## Code Style
 
